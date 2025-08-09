@@ -75,7 +75,7 @@ class Queue extends Model
     public static function generateQueueNumber(?Carbon $date = null): string
     {
         $date = $date ?? today();
-        
+
         // ຫາຄິວລ່າສຸດຂອງວັນນັ້ນ
         $lastQueue = self::whereDate('queue_date', $date)
             ->orderBy('queue_number', 'desc')
@@ -104,6 +104,11 @@ class Queue extends Model
     /**
      * ຄວາມສຳພັນກັບຄົນໄຂ້
      */
+
+    public function room(): BelongsTo
+    {
+        return $this->belongsTo(ExaminationRoom::class, 'room_id');
+    }
     public function patient(): BelongsTo
     {
         return $this->belongsTo(Patient::class);
@@ -370,7 +375,7 @@ class Queue extends Model
     public function scopeOrderByQueue($query)
     {
         return $query->orderBy('priority', 'desc') // urgent ກ່ອນ
-                    ->orderBy('queue_number', 'asc'); // ແລ້ວຕາມລຳດັບເລກ
+            ->orderBy('queue_number', 'asc'); // ແລ້ວຕາມລຳດັບເລກ
     }
 
     /**

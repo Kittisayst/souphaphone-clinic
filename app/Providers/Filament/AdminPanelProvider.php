@@ -2,11 +2,18 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Resources\PatientResource;
+use App\Filament\Resources\QueueResource;
+use App\Filament\Resources\UserResource;
+use App\Filament\Widgets\QueueStatsWidget;
+use App\Filament\Widgets\TodayQueueWidget;
 use Filament\FontProviders\GoogleFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationBuilder;
+use Filament\Navigation\NavigationGroup;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -37,11 +44,34 @@ class AdminPanelProvider extends PanelProvider
             ->pages([
                 Pages\Dashboard::class,
             ])
-            ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
+            // ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
                 Widgets\AccountWidget::class,
                 Widgets\FilamentInfoWidget::class,
+                QueueStatsWidget::class,
+                TodayQueueWidget::class,
             ])
+             ->navigation(function (NavigationBuilder $builder): NavigationBuilder {
+                return $builder->groups([
+                    NavigationGroup::make()
+                        ->items([
+                            \Filament\Navigation\NavigationItem::make('Dashboard')
+                                ->icon('heroicon-o-home')
+                                ->isActiveWhen(fn() => request()->routeIs('filament.admin.pages.dashboard'))
+                                ->url(fn() => Pages\Dashboard::getUrl()),
+                        ]),
+
+                    NavigationGroup::make('ການຮັກສາ')
+                        ->items([
+                            ...QueueResource::getNavigationItems(),
+                        ]),                   
+                    NavigationGroup::make('ຈັດການຂໍ້ມູນພື້ນຖານ')
+                        ->items([
+                            ...PatientResource::getNavigationItems(),
+                            ...UserResource::getNavigationItems(),
+                        ]),                                   
+                ]);
+            })
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

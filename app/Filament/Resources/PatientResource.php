@@ -15,9 +15,7 @@ class PatientResource extends Resource
 {
     protected static ?string $model = Patient::class;
     protected static ?string $navigationIcon = 'heroicon-o-user-group';
-    protected static ?string $navigationLabel = 'ຄົນໄຂ້';
-    protected static ?string $navigationGroup = 'ຂໍ້ມູນຄົນໄຂ້';
-    protected static ?int $navigationSort = 1;
+    protected static ?string $modelLabel = 'ຄົນໄຂ້';
     protected static ?string $recordTitleAttribute = 'full_name';
 
     public static function form(Form $form): Form

@@ -2,6 +2,9 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Resources\ExaminationRoomResource;
+use App\Filament\Resources\MedicalExaminationResource;
+use App\Filament\Resources\MedicalServiceResource;
 use App\Filament\Resources\PatientResource;
 use App\Filament\Resources\QueueResource;
 use App\Filament\Resources\UserResource;
@@ -64,6 +67,9 @@ class AdminPanelProvider extends PanelProvider
                     NavigationGroup::make('ການຮັກສາ')
                         ->items([
                             ...QueueResource::getNavigationItems(),
+                            ...MedicalServiceResource::getNavigationItems(),
+                            ...ExaminationRoomResource::getNavigationItems(),
+                            ...MedicalExaminationResource::getNavigationItems(),
                         ]),                   
                     NavigationGroup::make('ຈັດການຂໍ້ມູນພື້ນຖານ')
                         ->items([

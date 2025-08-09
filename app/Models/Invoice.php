@@ -168,7 +168,7 @@ class Invoice extends Model
             $subtotal += $itemTotal;
         }
 
-        $this->subtotal = $subtotal;
+        $this->subtotal = $this->asDecimal($subtotal);
 
         // ຄິດສ່ວນຫຼຸດ
         $discountAmount = 0;
@@ -184,7 +184,7 @@ class Invoice extends Model
             $taxAmount = $this->tax_amount;
         }
 
-        $this->total_amount = $subtotal - $discountAmount + $taxAmount;
+        $this->total_amount = $this->asDecimal($subtotal - $discountAmount + $taxAmount);
     }
 
     /**
@@ -229,7 +229,7 @@ class Invoice extends Model
      */
     public function addService(MedicalService $service, int $quantity = 1): void
     {
-        $this->addItem('service', $service->id, $service->service_name, $quantity, $service->price);
+        $this->addItem('service', $service->id, $service->service_name, $quantity, (float)$service->price);
     }
 
     /**
@@ -237,7 +237,7 @@ class Invoice extends Model
      */
     public function addMedicine(Medicine $medicine, int $quantity): void
     {
-        $this->addItem('medicine', $medicine->id, $medicine->medicine_name, $quantity, $medicine->unit_price);
+        $this->addItem('medicine', $medicine->id, $medicine->medicine_name, $quantity, (float)$medicine->unit_price);
     }
 
     /**

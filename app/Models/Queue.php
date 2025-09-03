@@ -4,401 +4,173 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Carbon\Carbon;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Queue extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'patient_id',
         'queue_number',
         'queue_date',
-        'priority',
-        'status',
-        'current_stage',
-        'assigned_room_id',
-        'called_at',
-        'basic_check_at',
-        'examination_started_at',
-        'results_available_at',
-        'consultation_started_at',
+        'initial_complaint',
+        'assigned_doctor_id',
+        'queue_status',
+        'vital_checked_at',
+        'doctor_start_at',
         'completed_at',
-        'basic_vitals',
-        'notes',
-        'created_by',
-        'basic_check_by',
-        'examination_by',
-        'consultation_by',
+        'priority_level',
+        'created_by_id'
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'queue_date' => 'date',
-            'called_at' => 'datetime',
-            'basic_check_at' => 'datetime',
-            'examination_started_at' => 'datetime',
-            'results_available_at' => 'datetime',
-            'consultation_started_at' => 'datetime',
-            'completed_at' => 'datetime',
-            'basic_vitals' => 'array',
-        ];
-    }
+    protected $casts = [
+        'queue_date' => 'date',
+        'vital_checked_at' => 'datetime',
+        'doctor_start_at' => 'datetime',
+        'completed_at' => 'datetime',
+    ];
 
-    // === Relationships ===
-    public function patient(): BelongsTo
+    // =================== RELATIONSHIPS ===================
+
+    // ຄົນໄຂ້
+    public function patient()
     {
         return $this->belongsTo(Patient::class);
     }
 
-    public function assignedRoom(): BelongsTo
+    // ທ່ານໝໍທີ່ຮັບຄິວ
+    public function assignedDoctor()
     {
-        return $this->belongsTo(ExaminationRoom::class, 'assigned_room_id');
+        return $this->belongsTo(User::class, 'doctor_id');
     }
 
-    public function createdBy(): BelongsTo
+    // ຜູ້ສ້າງຄິວ
+    public function createdBy()
     {
-        return $this->belongsTo(User::class, 'created_by');
+        return $this->belongsTo(User::class, 'created_by_id');
     }
 
-    public function basicCheckBy(): BelongsTo
+    // ການກວດເບື້ອງຕົ້ນ
+    public function vitalSign()
     {
-        return $this->belongsTo(User::class, 'basic_check_by');
+        return $this->hasOne(VitalSign::class);
     }
 
-    public function examinationBy(): BelongsTo
+    // ບໍລິການທີ່ເລືອກ
+    public function queueServices()
     {
-        return $this->belongsTo(User::class, 'examination_by');
+        return $this->hasMany(QueueService::class);
     }
 
-    public function consultationBy(): BelongsTo
+    // ບໍລິການທີ່ເລືອກ (ພ້ອມຂໍ້ມູນບໍລິການ)
+    public function services()
     {
-        return $this->belongsTo(User::class, 'consultation_by');
+        return $this->belongsToMany(Service::class, 'queue_services')
+            ->withPivot([
+                'service_status',
+                'priority_order',
+                'added_by_id',
+                'assigned_to_id',
+                'scheduled_at',
+                'started_at',
+                'completed_at',
+                'notes'
+            ])
+            ->withTimestamps();
     }
 
-    // === Workflow Status Checks ===
-    public function isAtRegistration(): bool
+    // ການປິ່ນປົວ (ຜ່ານ queueServices)
+    public function treatments()
     {
-        return $this->current_stage === 'registration';
+        return $this->hasManyThrough(Treatment::class, QueueService::class);
     }
 
-    public function isAtBasicCheck(): bool
+    // ຼົນການກວດ (ຜ່ານ queueServices)
+    public function labs()
     {
-        return $this->current_stage === 'basic_check';
+        return $this->hasManyThrough(Lab::class, QueueService::class);
     }
 
-    public function isAtWaitingRoom(): bool
+    // ໃບສັ່ງຢາ
+    public function prescriptions()
     {
-        return $this->current_stage === 'waiting_room';
+        return $this->hasMany(Prescription::class);
     }
 
-    public function isAtExamination(): bool
+    // ການຈ່າຍເງິນ
+    public function payment()
     {
-        return $this->current_stage === 'examination';
+        return $this->hasOne(Payment::class);
     }
 
-    public function isWaitingResults(): bool
+    // =================== SCOPES ===================
+
+    // ຄິວຂອງວັນນີ້
+    public function scopeToday($query)
     {
-        return $this->current_stage === 'waiting_results';
+        return $query->whereDate('queue_date', today());
     }
 
-    public function isAtConsultation(): bool
+    // ຄິວຕາມສະຖານະ
+    public function scopeByStatus($query, $status)
     {
-        return $this->current_stage === 'consultation';
+        return $query->where('queue_status', $status);
     }
 
-    public function isAtTreatment(): bool
+    // ຄິວທີ່ລໍຖ້າ
+    public function scopeWaiting($query)
     {
-        return $this->current_stage === 'treatment';
+        return $query->where('queue_status', 'Registered');
     }
 
-    public function isAtPayment(): bool
+    // ຄິວທີ່ສຳເລັດ
+    public function scopeCompleted($query)
     {
-        return $this->current_stage === 'payment';
+        return $query->where('queue_status', 'Completed');
     }
 
-    // === Workflow Actions ===
-    
-    /**
-     * ເອີ້ນຄິວເພື່ອກວດພື້ນຖານ (Counter Staff)
-     */
-    public function callForBasicCheck(): bool
+    // ຄິວຂອງທ່ານໝໍ
+    public function scopeByDoctor($query, $doctorId)
     {
-        if ($this->current_stage === 'registration' && $this->status === 'waiting') {
-            return $this->update([
-                'status' => 'called',
-                'current_stage' => 'basic_check',
-                'called_at' => now(),
-            ]);
-        }
-        return false;
+        return $query->where('assigned_doctor_id', $doctorId);
     }
 
-    /**
-     * ເລີ່ມການກວດພື້ນຖານ (Counter Staff)
-     */
-    public function startBasicCheck(int $staffId, array $vitals = []): bool
+    // =================== ACCESSORS ===================
+
+    // ເລກຄິວທີ່ຈັດຮູບແບບ
+    public function getFormattedQueueNumberAttribute()
     {
-        if ($this->current_stage === 'basic_check' && $this->status === 'called') {
-            return $this->update([
-                'status' => 'in_progress',
-                'basic_check_at' => now(),
-                'basic_check_by' => $staffId,
-                'basic_vitals' => $vitals,
-            ]);
-        }
-        return false;
+        return str_pad($this->queue_number, 3, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * ສຳເລັດການກວດພື້ນຖານ ແລະ ມອບໝາຍຫ້ອງ (Counter Staff)
-     */
-    public function completeBasicCheckAndAssignRoom(int $roomId): bool
+    // ສະຖານະເປັນພາສາລາວ
+    public function getStatusLaoAttribute()
     {
-        if ($this->current_stage === 'basic_check' && $this->status === 'in_progress') {
-            // ກວດສອບວ່າຫ້ອງວ່າງບໍ່
-            $room = ExaminationRoom::find($roomId);
-            if (!$room || $room->status !== 'available') {
-                return false;
-            }
+        $statuses = [
+            'Registered' => 'ລົງທະບຽນແລ້ວ',
+            'Vital_Checked' => 'ກວດເບື້ອງຕົ້ນແລ້ວ',
+            'With_Doctor' => 'ຢູ່ກັບທ່ານໝໍ',
+            'Lab_Testing' => 'ກວດແລັບ',
+            'Results_Ready' => 'ຜົນກວດພ້ອມ',
+            'Completed' => 'ສຳເລັດ',
+            'Cancelled' => 'ຍົກເລີກ'
+        ];
 
-            // ອັບເດດຫ້ອງ
-            $room->update([
-                'status' => 'occupied',
-                'current_patient_id' => $this->patient_id,
-            ]);
-
-            return $this->update([
-                'status' => 'waiting',
-                'current_stage' => 'waiting_room',
-                'assigned_room_id' => $roomId,
-            ]);
-        }
-        return false;
+        return $statuses[$this->queue_status] ?? $this->queue_status;
     }
 
-    /**
-     * ເອີ້ນເຂົ້າຫ້ອງກວດ (Doctor/Nurse)
-     */
-    public function callToExaminationRoom(): bool
+    public function statusColor()
     {
-        if ($this->current_stage === 'waiting_room' && $this->status === 'waiting') {
-            return $this->update([
-                'status' => 'called',
-                'current_stage' => 'examination',
-            ]);
-        }
-        return false;
-    }
-
-    /**
-     * ເລີ່ມການກວດພິເສດ (Doctor)
-     */
-    public function startExamination(int $doctorId): bool
-    {
-        if ($this->current_stage === 'examination' && $this->status === 'called') {
-            return $this->update([
-                'status' => 'in_progress',
-                'examination_started_at' => now(),
-                'examination_by' => $doctorId,
-            ]);
-        }
-        return false;
-    }
-
-    /**
-     * ສົ່ງລໍຖ້າຜົນກວດ (Doctor)
-     */
-    public function sendToWaitingResults(): bool
-    {
-        if ($this->current_stage === 'examination' && $this->status === 'in_progress') {
-            return $this->update([
-                'status' => 'waiting',
-                'current_stage' => 'waiting_results',
-            ]);
-        }
-        return false;
-    }
-
-    /**
-     * ຜົນກວດພ້ອມແລ້ວ - ເອີ້ນພົບໝໍ (Counter Staff)
-     */
-    public function callForConsultation(): bool
-    {
-        if ($this->current_stage === 'waiting_results' && $this->status === 'waiting') {
-            return $this->update([
-                'status' => 'called',
-                'current_stage' => 'consultation',
-                'results_available_at' => now(),
-            ]);
-        }
-        return false;
-    }
-
-    /**
-     * ເລີ່ມການປຶກສາ/ວິນິໄສ (Doctor)
-     */
-    public function startConsultation(int $doctorId): bool
-    {
-        if ($this->current_stage === 'consultation' && $this->status === 'called') {
-            return $this->update([
-                'status' => 'in_progress',
-                'current_stage' => 'treatment',
-                'consultation_started_at' => now(),
-                'consultation_by' => $doctorId,
-            ]);
-        }
-        return false;
-    }
-
-    /**
-     * ສົ່ງຈ່າຍເງິນ (Doctor → Cashier)
-     */
-    public function sendToPayment(): bool
-    {
-        if ($this->current_stage === 'treatment' && $this->status === 'in_progress') {
-            return $this->update([
-                'status' => 'waiting',
-                'current_stage' => 'payment',
-            ]);
-        }
-        return false;
-    }
-
-    /**
-     * ສຳເລັດການຈ່າຍເງິນ (Cashier)
-     */
-    public function completePayment(): bool
-    {
-        if ($this->current_stage === 'payment' && $this->status === 'waiting') {
-            // ປ່ອຍຫ້ອງ
-            if ($this->assigned_room_id) {
-                $this->assignedRoom->update([
-                    'status' => 'available',
-                    'current_patient_id' => null,
-                ]);
-            }
-
-            return $this->update([
-                'status' => 'completed',
-                'current_stage' => 'completed',
-                'completed_at' => now(),
-            ]);
-        }
-        return false;
-    }
-
-    // === Helper Methods ===
-
-    /**
-     * ສະແດງຂັ້ນຕອນເປັນພາສາລາວ
-     */
-    public function getCurrentStageLabel(): string
-    {
-        return match ($this->current_stage) {
-            'registration' => 'ລົງທະບຽນ',
-            'basic_check' => 'ກວດພື້ນຖານ',
-            'waiting_room' => 'ລໍຖ້າເຂົ້າຫ້ອງ',
-            'examination' => 'ການກວດພິເສດ',
-            'waiting_results' => 'ລໍຖ້າຜົນກວດ',
-            'consultation' => 'ພົບໝໍ',
-            'treatment' => 'ການຮັກສາ',
-            'payment' => 'ຈ່າຍເງິນ',
-            'completed' => 'ສຳເລັດ',
-            default => $this->current_stage,
+        return match ($this->queue_status) {
+            'Registered' => 'info',
+            'Vital_Checked' => 'warning',
+            'With_Doctor' => 'info',
+            'Lab_Testing' => 'warning',
+            'Results_Ready' => 'success',
+            'Completed' => 'success',
+            'Cancelled' => 'danger',
+            default => 'gray',
         };
-    }
-
-    /**
-     * ກວດສອບວ່າ Counter Staff ສາມາດດຳເນີນການໄດ້ບໍ່
-     */
-    public function canCounterStaffHandle(): bool
-    {
-        return in_array($this->current_stage, [
-            'basic_check',
-            'waiting_results' // ສາມາດເອີ້ນຄົນໄຂ້ພົບໝໍໄດ້
-        ]);
-    }
-
-    /**
-     * ກວດສອບວ່າ Doctor ສາມາດດຳເນີນການໄດ້ບໍ່
-     */
-    public function canDoctorHandle(): bool
-    {
-        return in_array($this->current_stage, [
-            'examination',
-            'consultation',
-            'treatment'
-        ]);
-    }
-
-    /**
-     * ກວດສອບວ່າ Cashier ສາມາດດຳເນີນການໄດ້ບໍ່
-     */
-    public function canCashierHandle(): bool
-    {
-        return $this->current_stage === 'payment';
-    }
-
-    // === Scopes ===
-    
-    public function scopeAtStage($query, string $stage)
-    {
-        return $query->where('current_stage', $stage);
-    }
-
-    public function scopeForCounterStaff($query)
-    {
-        return $query->whereIn('current_stage', ['registration', 'basic_check', 'waiting_results'])
-                    ->whereIn('status', ['waiting', 'called', 'in_progress']);
-    }
-
-    public function scopeForDoctor($query)
-    {
-        return $query->whereIn('current_stage', ['examination', 'consultation', 'treatment'])
-                    ->whereIn('status', ['waiting', 'called', 'in_progress']);
-    }
-
-    public function scopeForCashier($query)
-    {
-        return $query->where('current_stage', 'payment')
-                    ->where('status', 'waiting');
-    }
-
-    // === Auto-generation ===
-    
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::creating(function ($queue) {
-            if (empty($queue->queue_number)) {
-                $queue->queue_number = self::generateQueueNumber($queue->queue_date);
-            }
-            if (empty($queue->queue_date)) {
-                $queue->queue_date = today();
-            }
-            if (empty($queue->current_stage)) {
-                $queue->current_stage = 'registration';
-            }
-        });
-    }
-
-    public static function generateQueueNumber(?Carbon $date = null): string
-    {
-        $date = $date ?? today();
-        $lastQueue = self::whereDate('queue_date', $date)
-            ->orderBy('queue_number', 'desc')
-            ->first();
-
-        if (!$lastQueue) {
-            return 'A001';
-        }
-
-        $lastNumber = intval(substr($lastQueue->queue_number, 1));
-        $newNumber = $lastNumber + 1;
-        return 'A' . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
     }
 }

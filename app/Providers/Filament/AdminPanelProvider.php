@@ -2,20 +2,12 @@
 
 namespace App\Providers\Filament;
 
-use App\Filament\Resources\ExaminationRoomResource;
-use App\Filament\Resources\MedicalExaminationResource;
-use App\Filament\Resources\MedicalServiceResource;
-use App\Filament\Resources\PatientResource;
-use App\Filament\Resources\QueueResource;
-use App\Filament\Resources\UserResource;
-use App\Filament\Widgets\QueueStatsWidget;
-use App\Filament\Widgets\TodayQueueWidget;
+
 use Filament\FontProviders\GoogleFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
-use Filament\Navigation\NavigationBuilder;
 use Filament\Navigation\NavigationGroup;
 use Filament\Pages;
 use Filament\Panel;
@@ -37,9 +29,13 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
+            ->brandLogo(asset('images/logo.png'))
+             ->brandLogoHeight('3rem')
+            ->favicon(asset('images/logo.png'))
+            ->brandName('ລະບົບບໍລິຫານຄຣີນິກສຸພາພອນ')
             ->login()
             ->colors([
-                'primary' => Color::Amber,
+                'primary' => Color::Lime,
             ])
             ->font('Noto Sans Lao', provider: GoogleFontProvider::class)
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
@@ -49,35 +45,19 @@ class AdminPanelProvider extends PanelProvider
             ])
             // ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
-                Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
-                QueueStatsWidget::class,
-                TodayQueueWidget::class,
+                // Widgets\AccountWidget::class,
+                // Widgets\FilamentInfoWidget::class,
+                // QueueStatsWidget::class,
+                // TodayQueueWidget::class,
             ])
-             ->navigation(function (NavigationBuilder $builder): NavigationBuilder {
-                return $builder->groups([
-                    NavigationGroup::make()
-                        ->items([
-                            \Filament\Navigation\NavigationItem::make('Dashboard')
-                                ->icon('heroicon-o-home')
-                                ->isActiveWhen(fn() => request()->routeIs('filament.admin.pages.dashboard'))
-                                ->url(fn() => Pages\Dashboard::getUrl()),
-                        ]),
-
-                    NavigationGroup::make('ການຮັກສາ')
-                        ->items([
-                            ...QueueResource::getNavigationItems(),
-                            ...MedicalServiceResource::getNavigationItems(),
-                            ...ExaminationRoomResource::getNavigationItems(),
-                            ...MedicalExaminationResource::getNavigationItems(),
-                        ]),                   
-                    NavigationGroup::make('ຈັດການຂໍ້ມູນພື້ນຖານ')
-                        ->items([
-                            ...PatientResource::getNavigationItems(),
-                            ...UserResource::getNavigationItems(),
-                        ]),                                   
-                ]);
-            })
+              ->navigationGroups([
+                  NavigationGroup::make('ການບໍລິການ'),
+                  NavigationGroup::make('ການຮັກສາ'),
+                  NavigationGroup::make('ການເງິນ'),
+                  NavigationGroup::make('ລາຍງານ'),
+                  NavigationGroup::make('ຈັດການຂໍ້ມູນພື້ນຖານ'),
+                 NavigationGroup::make('ການຕັ້ງຄ່າ'),
+              ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

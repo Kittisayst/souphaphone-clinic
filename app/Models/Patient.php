@@ -5,230 +5,87 @@ namespace App\Models;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Patient extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'patient_code',
         'first_name',
-        'last_name',
-        'phone',
-        'email',
-        'address',
-        'birth_date',
+        'last_name', 
+        'date_of_birth',
         'gender',
-        'id_card_number',
+        'phone_number',
+        'address',
         'emergency_contact',
+        'emergency_phone',
+        'blood_type',
         'allergies',
-        'notes',
-        'is_active',
+        'medical_history'
     ];
 
-    protected function casts(): array
-    {
-        return [
-            'birth_date' => 'date',
-            'emergency_contact' => 'array',
-            'allergies' => 'array',
-            'is_active' => 'boolean',
-        ];
-    }
+    protected $casts = [
+        'date_of_birth' => 'date',
+    ];
 
-    /**
-     * Boot method ສຳລັບສ້າງລະຫັດຄົນໄຂ້ອັດຕະໂນມັດ
-     */
-    protected static function boot()
-    {
-        parent::boot();
+    // =================== RELATIONSHIPS ===================
 
-        static::creating(function ($patient) {
-            if (empty($patient->patient_code)) {
-                $patient->patient_code = self::generatePatientCode();
-            }
-        });
-    }
-
-    /**
-     * ສ້າງລະຫັດຄົນໄຂ້ອັດຕະໂນມັດ (PT001, PT002...)
-     */
-    public static function generatePatientCode(): string
-    {
-        $lastPatient = self::orderBy('id', 'desc')->first();
-        
-        if (!$lastPatient) {
-            return 'PT001';
-        }
-
-        // ດຶງເອົາເລກຈາກລະຫັດຄົນໄຂ້ຄັ້ງລ່າສຸດ
-        $lastNumber = intval(substr($lastPatient->patient_code, 2));
-        $newNumber = $lastNumber + 1;
-
-        return 'PT' . str_pad($newNumber, 3, '0', STR_PAD_LEFT);
-    }
-
-    /**
-     * ຊື່ເຕັມຂອງຄົນໄຂ້
-     */
-    public function getFullNameAttribute(): string
-    {
-        return $this->first_name . ' ' . $this->last_name;
-    }
-
-    /**
-     * ອາຍຸຂອງຄົນໄຂ້
-     */
-    public function getAgeAttribute(): ?int
-    {
-        if (!$this->birth_date) {
-            return null;
-        }
-
-        return Carbon::parse((string)$this->birth_date)->age;
-    }
-
-    /**
-     * ຄວາມສຳພັນກັບຄິວ
-     */
-    public function queues(): HasMany
+    // ຄິວທັງໝົດຂອງຄົນໄຂ້ຄົນນີ້
+    public function queues()
     {
         return $this->hasMany(Queue::class);
     }
 
-    /**
-     * ຄິວປະຈຸບັນ (ວັນນີ້)
-     */
-    public function todayQueue()
+    // ຄິວລ່າສຸດ
+    public function latestQueue()
     {
-        return $this->queues()
-            ->whereDate('queue_date', today())
-            ->whereIn('status', ['waiting', 'called', 'in_progress'])
-            ->first();
+        return $this->hasOne(Queue::class)->latest();
     }
 
-    /**
-     * ຄວາມສຳພັນກັບການກວດ
-     */
-    public function medicalExaminations(): HasMany
+    // ຄິວທີ່ຍັງບໍ່ສຳເລັດ
+    public function activeQueues()
     {
-        return $this->hasMany(MedicalExamination::class);
+        return $this->hasMany(Queue::class)->whereNotIn('queue_status', ['Completed', 'Cancelled']);
     }
 
-    /**
-     * ການກວດຄັ້ງລ່າສຸດ
-     */
-    public function latestExamination()
+    // ການກວດເບື້ອງຕົ້ນທັງໝົດ (ຜ່ານ queues)
+    public function vitalSigns()
     {
-        return $this->medicalExaminations()
-            ->latest('examination_date')
-            ->first();
+        return $this->hasManyThrough(VitalSign::class, Queue::class);
     }
 
-    /**
-     * ຄວາມສຳພັນກັບການຮັກສາ
-     */
-    public function treatments(): HasMany
+    // ໃບສັ່ງຢາທັງໝົດ (ຜ່ານ queues)
+    public function prescriptions()
     {
-        return $this->hasMany(Treatment::class);
+        return $this->hasManyThrough(Prescription::class, Queue::class);
     }
 
-    /**
-     * ການຮັກສາຄັ້ງລ່າສຸດ
-     */
-    public function latestTreatment()
+    // ການຈ່າຍເງິນທັງໝົດ (ຜ່ານ queues)
+    public function payments()
     {
-        return $this->treatments()
-            ->latest('created_at')
-            ->first();
+        return $this->hasManyThrough(Payment::class, Queue::class);
     }
 
-    /**
-     * ຄວາມສຳພັນກັບໃບເກັບເງິນ
-     */
-    public function invoices(): HasMany
+    // =================== ACCESSORS ===================
+
+    // ຊື່ເຕັມ
+    public function getFullNameAttribute()
     {
-        return $this->hasMany(Invoice::class);
+        $prefix = $this->gender === 'male' ? 'ທ້າວ' : 'ນາງ';
+        return "{$prefix} {$this->first_name} {$this->last_name}";;
     }
 
-    /**
-     * ໃບເກັບເງິນທີ່ຍັງບໍ່ໄດ້ຈ່າຍ
-     */
-    public function unpaidInvoices()
+    // ອາຍຸ
+    public function getAgeAttribute()
     {
-        return $this->invoices()
-            ->whereIn('payment_status', ['pending', 'partial']);
+        return $this->date_of_birth ? Carbon::parse($this->date_of_birth)->age : null;
     }
 
-    /**
-     * ຄວາມສຳພັນກັບການນັດໝາຍ
-     */
-    public function appointments(): HasMany
+    // ຊື່ສະແດງກັບລະຫັດ
+    public function getDisplayNameAttribute()
     {
-        return $this->hasMany(Appointment::class);
-    }
-
-    /**
-     * ການນັດໝາຍຄັ້ງຕໍ່ໄປ
-     */
-    public function nextAppointment()
-    {
-        return $this->appointments()
-            ->where('appointment_date', '>=', today())
-            ->where('status', '!=', 'cancelled')
-            ->orderBy('appointment_date')
-            ->orderBy('appointment_time')
-            ->first();
-    }
-
-    /**
-     * ກວດສອບວ່າມີການແພ້ຢາບໍ່
-     */
-    public function hasAllergy(string $medicine): bool
-    {
-        if (!$this->allergies) {
-            return false;
-        }
-
-        foreach ($this->allergies as $allergy) {
-            if (stripos($allergy['medicine_name'] ?? '', $medicine) !== false) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Scope ສຳຫລັບຄົ້ນຫາ
-     */
-    public function scopeSearch($query, $search)
-    {
-        return $query->where(function ($query) use ($search) {
-            $query->where('patient_code', 'like', "%{$search}%")
-                ->orWhere('first_name', 'like', "%{$search}%")
-                ->orWhere('last_name', 'like', "%{$search}%")
-                ->orWhere('phone', 'like', "%{$search}%")
-                ->orWhere('id_card_number', 'like', "%{$search}%");
-        });
-    }
-
-    /**
-     * Scope ສຳຫລັບຄົນໄຂ້ທີ່ເປີດໃຊ້ງານ
-     */
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
-    }
-
-    /**
-     * Scope ສຳຫລັບຄົນໄຂ້ທີ່ມີຄິວວັນນີ້
-     */
-    public function scopeHasTodayQueue($query)
-    {
-        return $query->whereHas('queues', function ($q) {
-            $q->whereDate('queue_date', today());
-        });
+        return "{$this->patient_code} - {$this->full_name}";
     }
 }

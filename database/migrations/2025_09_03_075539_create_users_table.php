@@ -1,0 +1,44 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+           Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password');
+            $table->enum('role', ['admin', 'doctor', 'nurse', 'cashier', 'technician']);
+            $table->json('permissions')->nullable()->comment('ສິດທິພິເສດແບບຢືດຢຸ່ນ');
+            $table->boolean('is_active')->default(true);
+            $table->string('phone', 20)->nullable();
+            $table->text('address')->nullable();
+            $table->string('license_number', 50)->nullable()->comment('ເລກໃບອະນຸຍາດໝໍ/ພະຍາບານ');
+            $table->json('specializations')->nullable()->comment('ຄວາມຊ່ຽວຊານ');
+            $table->rememberToken();
+            $table->timestamps();
+            $table->softDeletes();
+
+            // Indexes
+            $table->index('role');
+            $table->index('is_active');
+            $table->index('email');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('users');
+    }
+};

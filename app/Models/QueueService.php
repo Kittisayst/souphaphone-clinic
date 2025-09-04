@@ -13,10 +13,10 @@ class QueueService extends Model
     protected $fillable = [
         'queue_id',
         'service_id',
-        'added_by_id',
+        'added_by',
         'service_status',
         'priority_order',
-        'assigned_to_id',
+        'assigned_to',
         'scheduled_at',
         'started_at',
         'completed_at',
@@ -26,9 +26,33 @@ class QueueService extends Model
     protected $casts = [
         'priority_order' => 'integer',
         'scheduled_at' => 'datetime',
-        'started_at' => 'datetime', 
+        'started_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($record) {
+            \Log::info('Boot method triggered', [
+                'added_by_before' => $record->added_by,
+                'auth_id' => auth()->id(),
+                'auth_check' => auth()->check()
+            ]);
+
+            if (empty($record->added_by) && auth()->check()) {
+                $record->added_by = auth()->id();
+                \Log::info('Set added_by in boot', ['added_by' => $record->added_by]);
+            }
+
+            if (empty($record->priority_order)) {
+                $lastPriority = static::where('queue_id', $record->queue_id)
+                    ->max('priority_order') ?? 0;
+                $record->priority_order = $lastPriority + 1;
+            }
+        });
+    }
 
     // =================== RELATIONSHIPS ===================
 
@@ -47,13 +71,13 @@ class QueueService extends Model
     // ຜູ້ເພີ່ມບໍລິການ
     public function addedBy()
     {
-        return $this->belongsTo(User::class, 'added_by_id');
+        return $this->belongsTo(User::class, 'added_by');
     }
 
     // ຜູ້ຖືກມອບໝາຍ
     public function assignedTo()
     {
-        return $this->belongsTo(User::class, 'assigned_to_id');
+        return $this->belongsTo(User::class, 'assigned_to');
     }
 
     // ການປິ່ນປົວ
@@ -118,7 +142,7 @@ class QueueService extends Model
             'Completed' => 'ສຳເລັດ',
             'Cancelled' => 'ຍົກເລີກ'
         ];
-        
+
         return $statuses[$this->service_status] ?? $this->service_status;
     }
 

@@ -22,6 +22,21 @@ class LabResource extends Resource
     protected static ?string $modelLabel = 'ຜົນການກວດ';
     protected static ?int $navigationSort = 1;
 
+    //  'queue_service_id',
+    //     'lab_code',
+    //     'test_results',
+    //     'result_summary',
+    //     'reference_values',
+    //     'interpretation',
+    //     'images_attachments',
+    //     'performed_by_id',
+    //     'performed_at',
+    //     'reviewed_by_doctor_id',
+    //     'reviewed_at',
+    //     'patient_notified',
+    //     'notified_at',
+    //     'lab_status'
+
     public static function form(Form $form): Form
     {
         return $form
@@ -34,7 +49,49 @@ class LabResource extends Resource
     {
         return $table
             ->columns([
-                //
+                Tables\Columns\TextColumn::make('lab_code')
+                    ->label('ລະຫັດແລັບ')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('queueService.queue.patient.full_name')
+                    ->label('ຊື່ຄົນໄຂ້')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('queueService.service.service_name')
+                    ->label('ບໍລິການ')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('performedBy.name')
+                    ->label('ຜູ້ເຮັດການກວດ')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('performed_at')
+                    ->label('ວັນທີກວດ')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('lab_status')
+                    ->label('ສະຖານະ')
+                    ->badge()
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'Pending' => 'ລໍຖ້າເຮັດການກວດ',
+                        'In_Progress' => 'ກຳລັງກວດ',
+                        'Completed' => 'ການກວດສຳເລັດ',
+                        'Doctor_Reviewed' => 'ທ່ານໝໍເບິ່ງແລ້ວ',
+                        'Patient_Notified' => 'ແຈ້ງຄົນໄຂ້ແລ້ວ',
+                        default => $state,
+                    })
+                    ->color(fn(string $state): string => match ($state) {
+                        'Pending' => 'info',
+                        'In_Progress' => 'warning',
+                        'Completed' => 'success',
+                        'Doctor_Reviewed' => 'success',
+                        'Patient_Notified' => 'success',
+                        default => 'gray',
+                    })
+                    ->sortable(),
+                    Tables\Columns\TextColumn::make('reviewedByDoctor.name')
+                    ->label('ທ່ານໝໍເບິ່ງແລ້ວ')
+                    ->sortable(),
+                    
             ])
             ->filters([
                 //

@@ -72,7 +72,7 @@ class Lab extends Model
     // ຜູ້ເຮັດການກວດ
     public function performedBy()
     {
-        return $this->belongsTo(User::class, 'performed_by_id');
+        return $this->belongsTo(User::class, 'performed_by');
     }
 
     // ທ່ານໝໍທີ່ເບິ່ງຜົນ

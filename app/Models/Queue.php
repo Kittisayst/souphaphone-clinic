@@ -31,6 +31,32 @@ class Queue extends Model
         'completed_at' => 'datetime',
     ];
 
+    // =================== GENERATORS ===================
+    protected static function boot()
+    {
+        parent::boot();
+        static::creating(function ($queue) {
+            if (empty($queue->queue_number)) {
+                $queue->queue_date = $queue->queue_date ?? now()->format('Y-m-d');
+                $lastQueue = static::where('queue_date', $queue->queue_date)
+                    ->max('queue_number');
+                $queue->queue_number = ($lastQueue ?? 0) + 1;
+            }
+            //ຜູ້ສ້າງຄິວ
+            if (empty($queue->created_by) && auth()->check()) {
+                $queue->created_by = auth()->id();
+            }
+        });
+    }
+
+    public static function getNextQueueNumber($date = null)
+    {
+        $date = $date ?? now()->format('Y-m-d');
+        $lastQueue = static::where('queue_date', $date)
+            ->max('queue_number');
+        return ($lastQueue ?? 0) + 1;
+    }
+
     // =================== RELATIONSHIPS ===================
 
     // ຄົນໄຂ້
@@ -70,8 +96,8 @@ class Queue extends Model
             ->withPivot([
                 'service_status',
                 'priority_order',
-                'added_by_id',
-                'assigned_to_id',
+                'added_by',
+                'assigned_to',
                 'scheduled_at',
                 'started_at',
                 'completed_at',
@@ -103,6 +129,24 @@ class Queue extends Model
     {
         return $this->hasOne(Payment::class);
     }
+
+    // =================== ACCESSORS ===================
+    public function isRegistered()
+    {
+        return $this->queue_status === 'Registered';
+    }
+
+    public function isVitalChecked()
+    {
+        return $this->queue_status === 'Vital_Checked';
+    }
+
+    public function hasVitalSigns(): bool
+    {
+        return $this->vitalSign()->exists();
+    }
+
+
 
     // =================== SCOPES ===================
 

@@ -22,6 +22,21 @@ class PrescriptionResource extends Resource
     protected static ?string $modelLabel = 'ການຈ່າຍຢາ';
     protected static ?int $navigationSort = 1;
 
+    // 'queue_id',
+    //     'medicine_id',
+    //     'dosage',
+    //     'frequency',
+    //     'duration',
+    //     'quantity',
+    //     'instructions',
+    //     'prescribed_by_id',
+    //     'dispensed_by_id',
+    //     'dispensed_quantity',
+    //     'dispensed_at',
+    //     'unit_price',
+    //     'total_price',
+    //     'status'
+
     public static function form(Form $form): Form
     {
         return $form
@@ -34,7 +49,55 @@ class PrescriptionResource extends Resource
     {
         return $table
             ->columns([
-                //
+                Tables\Columns\TextColumn::make('queue.queue_number')
+                    ->label('ລຳດັບຄິວ')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('patient.full_name')
+                    ->label('ຊື່ຄົນໄຂ້')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('medicine.medicine_name')
+                    ->label('ຊື່ຢາ')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('full_instruction')
+                    ->label('ວິທີການກິນຢາ')
+                    ->limit(50)
+                    ->tooltip(fn(Prescription $record): string => $record->full_instruction ?? ''),
+                Tables\Columns\TextColumn::make('quantity')
+                    ->label('ຈຳນວນ')
+                    ->numeric()
+                    ->suffix(fn(Prescription $record) => ' ' . $record->medicine->unit)
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('remaining_quantity')
+                    ->label('ຍັງເຫຼືອ')
+                    ->numeric()
+                    ->suffix(fn(Prescription $record) => ' ' . $record->medicine->unit)
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('unit_price')
+                    ->label('ລາຄາຕໍ່ໜ່ວຍ')
+                    ->money('LAK')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('total_price')
+                    ->label('ລາຄາລວມ')
+                    ->money('LAK')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('status_lao')
+                    ->label('ສະຖານະ')
+                    ->badge()
+                    ->color(fn(string $state): string => match ($state) {
+                        'ສັ່ງແລ້ວ' => 'info',
+                        'ຈ່າຍແລ້ວ' => 'success',
+                        'ຍົກເລີກ' => 'danger',
+                        default => 'gray',
+                    })
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('prescribedBy.name')
+                    ->label('ທ່ານໝໍສັ່ງ')
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('dispensedBy.name')
+                    ->label('ທ່ານໝໍຈ່າຍ')
+                    ->sortable(),
             ])
             ->filters([
                 //

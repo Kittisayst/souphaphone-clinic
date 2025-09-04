@@ -31,6 +31,18 @@ class VitalSign extends Model
         'heart_rate' => 'integer',
     ];
 
+    //=================== Boot ==========================
+    protected static function boot()
+    {
+        parent::boot();
+        static::creating(function ($record) {
+            //ຜູ້ສ້າງຄິວ
+            if (empty($record->recorded_by) && auth()->check()) {
+                $record->recorded_by = auth()->id();
+            }
+        });
+    }
+
     // =================== RELATIONSHIPS ===================
 
     // ຄິວທີ່ກ່ຽວຂ້ອງ
@@ -48,7 +60,7 @@ class VitalSign extends Model
     // ຜູ້ບັນທຶກ
     public function recordedBy()
     {
-        return $this->belongsTo(User::class, 'recorded_by_id');
+        return $this->belongsTo(User::class, 'recorded_by');
     }
 
     // =================== ACCESSORS ===================
@@ -57,9 +69,9 @@ class VitalSign extends Model
     public function getFormattedBloodPressureAttribute()
     {
         if ($this->blood_pressure_sys && $this->blood_pressure_dia) {
-            return "{$this->blood_pressure_sys}/{$this->blood_pressure_dia} mmHg";
+            return "{$this->blood_pressure_sys}/{$this->blood_pressure_dia}";
         }
-        return null;
+        return 0;
     }
 
     // BMI (ດັດຊະນີມວນກາຍ)

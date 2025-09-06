@@ -65,9 +65,6 @@ class PatientSeeder extends Seeder
             Patient::create($patient);
         }
 
-        // ສ້າງຄົນໄຂ້ເພີ່ມດ້ວຍ Factory (ສຳລັບການທົດສອບ)
-        Patient::factory()->count(20)->create();
-
         $this->command->info('✅ Created demo patients successfully');
     }
 }

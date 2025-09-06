@@ -57,9 +57,9 @@ class Patient extends Model
     }
 
     // ໃບສັ່ງຢາທັງໝົດ (ຜ່ານ queues)
-    public function prescriptions()
+    public function medicationInstructions()
     {
-        return $this->hasManyThrough(Prescription::class, Queue::class);
+        return $this->hasManyThrough(MedicationInstruction::class, Queue::class);
     }
 
     // ການຈ່າຍເງິນທັງໝົດ (ຜ່ານ queues)

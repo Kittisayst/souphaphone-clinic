@@ -101,13 +101,13 @@ class Queue extends Model
     {
         return $this->hasManyThrough(Treatment::class, QueueService::class);
     }
-    public function labs()
+    public function labTests()
     {
-        return $this->hasManyThrough(Lab::class, QueueService::class);
+        return $this->hasManyThrough(LabTest::class, QueueService::class);
     }
-    public function prescriptions()
+    public function medicationInstructions()
     {
-        return $this->hasMany(Prescription::class);
+        return $this->hasMany(MedicationInstruction::class);
     }
     public function payment()
     {

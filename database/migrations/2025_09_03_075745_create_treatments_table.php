@@ -12,59 +12,69 @@ return new class extends Migration {
       {
             Schema::create('treatments', function (Blueprint $table) {
                   $table->id()->comment('ລະຫັດການປິ່ນປົວ (Primary Key)');
-                  $table->unsignedBigInteger('queue_service_id')->comment('ລະຫັດບໍລິການໃນຄິວ (Foreign Key)');
-                  $table->unsignedBigInteger('room_id')->nullable()->comment('ຫ້ອງທີ່ໃຊ້ໃນການກວດ');
-                  $table->unsignedBigInteger('performed_by')->comment('ຜູ້ເຮັດການກວດ/ປິ່ນປົວ');
 
-                  // ເວລາ
-                  $table->timestamp('treatment_started_at')->nullable()->comment('ເວລາເລີ່ມການປິ່ນປົວ/ກວດ');
-                  $table->timestamp('treatment_ended_at')->nullable()->comment('ເວລາສິ້ນສຸດການປິ່ນປົວ/ກວດ');
+                  // ຄວາມສຳພັນຫຼັກ
+                  $table->unsignedBigInteger('queue_service_id')
+                        ->comment('ລະຫັດຄິວບໍລິການ (Foreign Key)');
+                  $table->unsignedBigInteger('room_id')
+                        ->comment('ລະຫັດຫ້ອງ (Foreign Key)');
+                  $table->unsignedBigInteger('doctor_id')
+                        ->comment('ລະຫັດທ່ານໝໍ (Foreign Key)');
 
-                  // ຂໍ້ມູນການກວດທົ່ວໄປ
-                  $table->text('medical_history_notes')->nullable()->comment('ປະຫວັດການປ່ວຍເພີ່ມເຕີມທີ່ທ່ານໝໍຖາມ');
-                  $table->text('current_symptoms')->nullable()->comment('ອາການປັດຈຸບັນທີ່ຄົນໄຂ້ບອກ');
-                  $table->text('physical_examination')->nullable()->comment('ການກວດທາງກາຍະພາບ (ກວດດູ, ຈັບ, ຟັງ)');
-                  $table->text('examination_notes')->nullable()->comment('ບັນທຶກການກວດ/ການສັງເກດ');
+                  // Phase 1: ການກວດເບື້ອງຕົ້ນ
+                  $table->text('examination_notes')->nullable()
+                        ->comment('ບັນທຶກການກວດຮ່າງກາຍ');
+                  $table->text('findings')->nullable()
+                        ->comment('ສິ່ງທີ່ພົບຈາກການກວດ');
+                  $table->text('medical_history_notes')->nullable()
+                        ->comment('ປະຫວັດການປ່ວຍທີ່ເກີ່ຍວຂ້ອງ');
 
-                  // ການວິເຄາະແລະການວິນິໄຈ
-                  $table->text('initial_assessment')->nullable()->comment('ການປະເມີນເບື້ອງຕົ້ນຈາກທ່ານໝໍ');
-                  $table->text('findings')->nullable()->comment('ສິ່ງທີ່ພົບຈາກການກວດ');
-                  $table->text('diagnosis')->nullable()->comment('ການວິນິໄຈໂລກສຸດທ້າຍ');
-
-                  // ການປິ່ນປົວແລະຄຳແນະນຳ
-                  $table->text('treatment_plan')->nullable()->comment('ແຜນການປິ່ນປົວ/ການຮັກສາ');
-                  $table->text('recommendations')->nullable()->comment('ຄຳແນະນຳຈາກທ່ານໝໍ');
-                  $table->text('doctor_recommendations')->nullable()->comment('ຄຳແນະນຳພິເສດຈາກທ່ານໝໍ');
+                  // Phase 2: ການວິນິໄຈ & ວາງແຜນ (ຫຼັງຈາກມີຜົນ Lab)
+                  $table->text('diagnosis')->nullable()
+                        ->comment('ການວິນິໄຈໂລກສຸດທ້າຍ');
+                  $table->text('treatment_plan')->nullable()
+                        ->comment('ແຜນການປິ່ນປົວ');
 
                   // ການຕິດຕາມ
-                  $table->boolean('follow_up_required')->default(false)->comment('ຕ້ອງມາຕິດຕາມບໍ່');
-                  $table->date('follow_up_date')->nullable()->comment('ວັນນັດຕິດຕາມ');
-                  $table->text('follow_up_notes')->nullable()->comment('ໝາຍເຫດການຕິດຕາມ');
+                  $table->boolean('follow_up_required')->default(false)
+                        ->comment('ຕ້ອງມາຕິດຕາມບໍ່');
+                  $table->date('follow_up_date')->nullable()
+                        ->comment('ວັນນັດຕິດຕາມ');
+                  $table->text('follow_up_notes')->nullable()
+                        ->comment('ໝາຍເຫດການຕິດຕາມ');
 
+                  // ສະຖານະການປິ່ນປົວ
                   $table->enum('status', [
-                        'In_Progress',          // ກຳລັງກວດ
-                        'Waiting_Lab_Results',  // ລໍຖ້າຜົນແລັບ
-                        'Completed',            // ສຳເລັດ
-                        'Cancelled'             // ຍົກເລີກ
-                  ])->default('In_Progress')->comment('ສະຖານະການປິ່ນປົວ');
+                        'In_Progress',           // ກຳລັງກວດຢູ່
+                        'Waiting_Lab_Results',   // ລໍຖ້າຄນົນ Lab
+                        'Lab_Results_Ready',     // ຜົນ Lab ພ້ອມແລ້ວ
+                        'Completed',             // ສຳເລັດການປິ່ນປົວ
+                        'Cancelled'              // ຍົກເລີກ
+                  ])->default('In_Progress')
+                        ->comment('ສະຖານະການປິ່ນປົວ');
 
-                  $table->unsignedBigInteger('updated_by')->nullable()->comment('ຜູ້ອັບເດດຫຼ້າສຸດ');
+                  // ການຕິດຕາມການອັບເດດ
+                  $table->unsignedBigInteger('updated_by')->nullable()
+                        ->comment('ຜູ້ອັບເດດຄັ້ງຫຼ້າສຸດ');
 
                   $table->timestamps();
                   $table->softDeletes();
 
                   // Foreign Keys
-                  $table->foreign('queue_service_id')->references('id')->on('queue_services')->onDelete('cascade');
-                  $table->foreign('room_id')->references('id')->on('rooms')->onDelete('set null');
-                  $table->foreign('performed_by')->references('id')->on('users');
-                  $table->foreign('updated_by')->references('id')->on('users')->onDelete('set null');
+                  $table->foreign('queue_service_id')->references('id')->on('queue_services')
+                        ->onDelete('cascade')->comment('ເຊື່ອມໂຍງກັບຄິວບໍລິການ');
+                  $table->foreign('room_id')->references('id')->on('rooms')
+                        ->comment('ເຊື່ອມໂຍງກັບຫ້ອງ');
+                  $table->foreign('doctor_id')->references('id')->on('users')
+                        ->comment('ເຊື່ອມໂຍງກັບທ່ານໝໍ');
+                  $table->foreign('updated_by')->references('id')->on('users')
+                        ->onDelete('set null')->comment('ເຊື່ອມໂຍງກັບຜູ້ອັບເດດ');
 
                   // Indexes
-                  $table->index(['performed_by', 'treatment_started_at']);
-                  $table->index(['room_id', 'status']);
-                  $table->index('queue_service_id');
-                  $table->index('status');
-                  $table->index('treatment_started_at');
+                  $table->index(['queue_service_id', 'status'], 'idx_queue_service_status');
+                  $table->index(['doctor_id', 'created_at'], 'idx_doctor_date');
+                  $table->index('status', 'idx_status');
+                  $table->index('follow_up_date', 'idx_follow_up_date');
             });
       }
 

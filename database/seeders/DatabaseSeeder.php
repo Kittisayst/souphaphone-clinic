@@ -17,11 +17,11 @@ class DatabaseSeeder extends Seeder
             ServiceSeeder::class,
             QueueSeeder::class,
             MedicineSeeder::class,
-            VitalSignSeeder::class,
             QueueServiceSeeder::class,
-            LabSeeder::class,
-            PrescriptionSeeder::class,
+            VitalSignSeeder::class,
             TreatmentSeeder::class,
+            LabTestSeeder::class,
+            MedicationInstructionSeeder::class,
             PaymentSeeder::class,
         ]);
     }

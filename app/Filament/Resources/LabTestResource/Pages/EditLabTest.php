@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Filament\Resources\LabResource\Pages;
+namespace App\Filament\Resources\LabTestResource\Pages;
 
-use App\Filament\Resources\LabResource;
+use App\Filament\Resources\LabTestResource;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 
-class EditLab extends EditRecord
+class EditLabTest extends EditRecord
 {
-    protected static string $resource = LabResource::class;
+    protected static string $resource = LabTestResource::class;
 
     protected function getHeaderActions(): array
     {

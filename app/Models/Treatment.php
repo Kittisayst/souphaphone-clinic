@@ -1,7 +1,9 @@
 <?php
+// app/Models/Treatment.php
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,93 +28,53 @@ class Treatment extends Model
         'follow_up_date',
         'follow_up_notes',
         'status',
+        'billing_items',
+        'total_amount',
         'updated_by',
     ];
 
     protected $casts = [
         'follow_up_required' => 'boolean',
         'follow_up_date' => 'date',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
+        'billing_items' => 'json',
+        'total_amount' => 'decimal:2',
     ];
 
-    // ສະຖານະທີ່ອະນຸຍາດ
-    public const STATUS_IN_PROGRESS = 'In_Progress';
-    public const STATUS_WAITING_LAB = 'Waiting_Lab_Results';
-    public const STATUS_LAB_READY = 'Lab_Results_Ready';
-    public const STATUS_COMPLETED = 'Completed';
-    public const STATUS_CANCELLED = 'Cancelled';
+    // ======================== CONSTANTS ========================
 
-    public static function getStatuses(): array
-    {
-        return [
-            self::STATUS_IN_PROGRESS => 'ກຳລັງກວດຢູ່',
-            self::STATUS_WAITING_LAB => 'ລໍຖ້າຜົນ Lab',
-            self::STATUS_LAB_READY => 'ຜົນ Lab ພ້ອມແລ້ວ',
-            self::STATUS_COMPLETED => 'ສຳເລັດແລ້ວ',
-            self::STATUS_CANCELLED => 'ຍົກເລີກ',
-        ];
-    }
-
-    public function getStatusLaoAttribute(): string
-    {
-        return self::getStatuses()[$this->status] ?? $this->status;
-    }
+    public const STATUSES = [
+        'In_Progress' => 'ກຳລັງກວດຢູ່',
+        'Completed' => 'ສຳເລັດແລ້ວ',
+        'Cancelled' => 'ຍົກເລີກ',
+    ];
 
     // ======================== RELATIONSHIPS ========================
 
-    /**
-     * ຄິວບໍລິການທີ່ເກີ່ຍວຂ້ອງ
-     */
     public function queueService(): BelongsTo
     {
         return $this->belongsTo(QueueService::class);
     }
 
-    /**
-     * ຫ້ອງທີ່ເຮັດການປິ່ນປົວ
-     */
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
     }
 
-    /**
-     * ທ່ານໝໍທີ່ຮັບຜິດຊອບ
-     */
     public function doctor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'doctor_id');
     }
 
-    /**
-     * ຜູ້ອັບເດດຂໍ້ມູນຄັ້ງຫຼ້າສຸດ
-     */
-    public function updatedByUser(): BelongsTo
+    public function updatedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-    /**
-     * ການກວດ Lab ທັງໝົດ
-     */
-    public function labTests(): HasMany
-    {
-        return $this->hasMany(LabTest::class);
-    }
-
-    /**
-     * ການສັ່ງຢາທັງໝົດ
-     */
     public function medicationInstructions(): HasMany
     {
         return $this->hasMany(MedicationInstruction::class);
     }
 
-    /**
-     * ການຈ່າຍເງິນ
-     */
     public function payment(): HasOne
     {
         return $this->hasOne(Payment::class);
@@ -120,103 +82,182 @@ class Treatment extends Model
 
     // ======================== SCOPES ========================
 
-    /**
-     * ການປິ່ນປົວທີ່ຍັງບໍ່ສຳເລັດ
-     */
-    public function scopeActive($query)
+    public function scopeByStatus($query, $status)
     {
-        return $query->whereNotIn('status', [self::STATUS_COMPLETED, self::STATUS_CANCELLED]);
+        return $query->where('status', $status);
     }
 
-    /**
-     * ການປິ່ນປົວຂອງທ່ານໝໍສະເພາະ
-     */
-    public function scopeByDoctor($query, $doctorId)
+    public function scopeInProgress($query)
     {
-        return $query->where('doctor_id', $doctorId);
+        return $query->where('status', 'In_Progress');
     }
 
-    /**
-     * ການປິ່ນປົວທີ່ຕ້ອງຕິດຕາມ
-     */
-    public function scopeNeedFollowUp($query)
+    public function scopeCompleted($query)
+    {
+        return $query->where('status', 'Completed');
+    }
+
+    public function scopeRequiringFollowUp($query)
     {
         return $query->where('follow_up_required', true)
-                    ->where('status', self::STATUS_COMPLETED);
+            ->whereNotNull('follow_up_date');
     }
 
-    // ======================== ACCESSORS & MUTATORS ========================
+    // ======================== METHODS ========================
 
-    /**
-     * ຂໍ້ມູນຄົນໄຂ້ຜ່ານ Queue Service
-     */
-    public function getPatientAttribute()
+    public function getStatusLabel(): string
     {
-        return $this->queueService?->queue?->patient;
+        return self::STATUSES[$this->status] ?? $this->status;
     }
 
-    /**
-     * ບໍລິການທີ່ໃຊ້ຜ່ານ Queue Service
-     */
-    public function getServiceAttribute()
+    public function getQueue(): Queue
     {
-        return $this->queueService?->service;
+        return $this->queueService->queue;
+    }
+
+    public function getPatient(): Patient
+    {
+        return $this->getQueue()->patient;
+    }
+
+    // ======================== BILLING METHODS ========================
+
+    public function calculateBillingItems(): array
+    {
+        $items = [];
+
+        // Add queue services
+        $queueServices = $this->getQueue()->queueServices;
+        foreach ($queueServices as $qs) {
+            $items['services'][] = [
+                'queue_service_id' => $qs->id,
+                'service_name' => $qs->service->service_name,
+                'price' => $qs->getServicePrice(),
+                'type' => 'service'
+            ];
+        }
+
+        // Add medications
+        foreach ($this->medicationInstructions as $medication) {
+            $items['medications'][] = [
+                'medication_id' => $medication->id,
+                'medicine_name' => $medication->medicine->medicine_name,
+                'quantity' => $medication->total_quantity,
+                'unit_price' => $medication->unit_price,
+                'total_price' => $medication->total_price,
+                'type' => 'medication'
+            ];
+        }
+
+        return $items;
+    }
+
+    public function updateBillingItems(): bool
+    {
+        $billingItems = $this->calculateBillingItems();
+
+        $totalAmount = 0;
+
+        // Calculate services total
+        foreach ($billingItems['services'] ?? [] as $service) {
+            $totalAmount += $service['price'];
+        }
+
+        // Calculate medications total
+        foreach ($billingItems['medications'] ?? [] as $medication) {
+            $totalAmount += $medication['total_price'];
+        }
+
+        return $this->update([
+            'billing_items' => $billingItems,
+            'total_amount' => $totalAmount,
+        ]);
+    }
+
+    public function getBillingItemsFormatted(): array
+    {
+        $items = $this->billing_items ?? [];
+        $formatted = [];
+
+        foreach ($items['services'] ?? [] as $service) {
+            $formatted[] = [
+                'name' => $service['service_name'],
+                'price' => number_format($service['price']) . ' ກີບ',
+                'type' => 'ບໍລິການ'
+            ];
+        }
+
+        foreach ($items['medications'] ?? [] as $medication) {
+            $formatted[] = [
+                'name' => $medication['medicine_name'] . ' x' . $medication['quantity'],
+                'price' => number_format($medication['total_price']) . ' ກີບ',
+                'type' => 'ຢາ'
+            ];
+        }
+
+        return $formatted;
+    }
+
+    public function getTotalAmountFormatted(): string
+    {
+        return number_format((int) $this->total_amount) . ' ກີບ';
+    }
+
+    // ======================== STATUS TRANSITIONS ========================
+
+    public function complete(): bool
+    {
+        $this->updateBillingItems();
+
+        return $this->update([
+            'status' => 'Completed',
+            'updated_by' => auth()->id(),
+        ]);
+    }
+
+    public function cancel(string $reason = null): bool
+    {
+        return $this->update([
+            'status' => 'Cancelled',
+            'updated_by' => auth()->id(),
+        ]);
     }
 
     // ======================== HELPER METHODS ========================
 
-    /**
-     * ກວດສອບວ່າສາມາດສັ່ງ Lab ໄດ້ບໍ່
-     */
-    public function canOrderLab(): bool
+    public function hasMedications(): bool
     {
-        return in_array($this->status, [
-            self::STATUS_IN_PROGRESS,
-            self::STATUS_WAITING_LAB
-        ]);
+        return $this->medicationInstructions()->exists();
     }
 
-    /**
-     * ກວດສອບວ່າສາມາດສັ່ງຢາໄດ້ບໍ່
-     */
+    public function isPaid(): bool
+    {
+        return $this->payment && $this->payment->payment_status === 'Paid';
+    }
+
     public function canPrescribeMedication(): bool
     {
-        return in_array($this->status, [
-            self::STATUS_IN_PROGRESS,
-            self::STATUS_LAB_READY
-        ]);
+        return $this->status === 'In_Progress';
     }
 
-    /**
-     * ກວດສອບວ່າສາມາດສຳເລັດການປິ່ນປົວໄດ້ບໍ່
-     */
-    public function canComplete(): bool
+    public function needsFollowUp(): bool
     {
-        // ຕ້ອງບໍ່ມີ Lab ທີ່ຍັງບໍ່ຮຽບຮ້ອຍ
-        $pendingLabs = $this->labTests()
-            ->whereNotIn('status', [LabTest::STATUS_REVIEWED, LabTest::STATUS_CANCELLED])
-            ->count();
-
-        return $pendingLabs === 0 && $this->status !== self::STATUS_COMPLETED;
+        return $this->follow_up_required && $this->follow_up_date;
     }
 
-    /**
-     * ອັບເດດສະຖານະອັດຕະໂນມັດ
-     */
-    public function updateStatusBasedOnLabResults(): void
+    public function getFollowUpStatus(): string
     {
-        if ($this->status === self::STATUS_WAITING_LAB) {
-            $completedLabs = $this->labTests()
-                ->where('status', LabTest::STATUS_REVIEWED)
-                ->count();
-            
-            $totalLabs = $this->labTests()
-                ->whereNot('status', LabTest::STATUS_CANCELLED)
-                ->count();
+        if (!$this->needsFollowUp())
+            return 'ບໍ່ຕ້ອງຕິດຕາມ';
 
-            if ($completedLabs === $totalLabs && $totalLabs > 0) {
-                $this->update(['status' => self::STATUS_LAB_READY]);
-            }
+        if (Carbon::parse($this->follow_up_date)->isFuture()) {
+            return 'ນັດວັນທີ ' . Carbon::parse($this->follow_up_date)->format('d/m/Y');
         }
+
+        if (Carbon::parse($this->follow_up_date)->isToday()) {
+            return 'ນັດວັນນີ້';
+        }
+
+        return 'ເລີຍກຳນົດແລ້ວ';
     }
 }

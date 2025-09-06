@@ -1,4 +1,5 @@
 <?php
+// app/Models/QueueService.php
 
 namespace App\Models;
 
@@ -18,78 +19,59 @@ class QueueService extends Model
         'added_by_id',
         'assigned_to_id',
         'service_status',
+        'assigned_room_id',
         'started_at',
         'completed_at',
         'actual_duration',
         'notes',
+        'service_details',
+        'service_price',
     ];
 
     protected $casts = [
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
+        'actual_duration' => 'integer',
+        'service_details' => 'json',
+        'service_price' => 'decimal:2',
     ];
 
-    // ສະຖານະທີ່ອະນຸຍາດ (ງ່າຍກວ່າເກົ່າ)
-    public const STATUS_ADDED = 'Added';
-    public const STATUS_IN_PROGRESS = 'In_Progress';
-    public const STATUS_COMPLETED = 'Completed';
-    public const STATUS_CANCELLED = 'Cancelled';
+    // ======================== CONSTANTS ========================
 
-    public static function getStatuses(): array
-    {
-        return [
-            self::STATUS_ADDED => 'ເພີ່ມແລ້ວ',
-            self::STATUS_IN_PROGRESS => 'ກຳລັງເຮັດ',
-            self::STATUS_COMPLETED => 'ສຳເລັດ',
-            self::STATUS_CANCELLED => 'ຍົກເລີກ',
-        ];
-    }
-
-    public function getServiceStatusLaoAttribute(): string
-    {
-        return self::getStatuses()[$this->service_status] ?? $this->service_status;
-    }
+    public const STATUSES = [
+        'Added' => 'ເພີ່ມແລ້ວ',
+        'In_Progress' => 'ກຳລັງເຮັດ',
+        'Completed' => 'ສຳເລັດແລ້ວ',
+        'Cancelled' => 'ຍົກເລີກ',
+    ];
 
     // ======================== RELATIONSHIPS ========================
 
-    /**
-     * ຄິວທີ່ເກີ່ຍວຂ້ອງ
-     */
     public function queue(): BelongsTo
     {
         return $this->belongsTo(Queue::class);
     }
 
-    /**
-     * ບໍລິການທີ່ເລືອກ
-     */
     public function service(): BelongsTo
     {
         return $this->belongsTo(Service::class);
     }
 
-    /**
-     * ຜູ້ເພີ່ມບໍລິການ
-     */
     public function addedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'added_by_id');
     }
 
-    /**
-     * ຜູ້ຮັບມອບໝາຍ
-     */
     public function assignedTo(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to_id');
     }
 
-    /**
-     * ການປິ່ນປົວທີ່ເກີ່ຍວຂ້ອງ (ຖ້າເປັນບໍລິການກວດທ່ານໝໍ)
-     */
+    public function assignedRoom(): BelongsTo
+    {
+        return $this->belongsTo(Room::class, 'assigned_room_id');
+    }
+
     public function treatment(): HasOne
     {
         return $this->hasOne(Treatment::class);
@@ -97,233 +79,188 @@ class QueueService extends Model
 
     // ======================== SCOPES ========================
 
-    /**
-     * ບໍລິການທີ່ຍັງບໍ່ສຳເລັດ
-     */
+    public function scopeByStatus($query, $status)
+    {
+        return $query->where('service_status', $status);
+    }
+
     public function scopePending($query)
     {
-        return $query->whereNotIn('service_status', [
-            self::STATUS_COMPLETED,
-            self::STATUS_CANCELLED
-        ]);
+        return $query->where('service_status', 'Added');
     }
 
-    /**
-     * ບໍລິການທີ່ກຳລັງເຮັດ
-     */
     public function scopeInProgress($query)
     {
-        return $query->where('service_status', self::STATUS_IN_PROGRESS);
+        return $query->where('service_status', 'In_Progress');
     }
 
-    /**
-     * ບໍລິການຂອງຄິວສະເພາະ
-     */
-    public function scopeForQueue($query, $queueId)
+    public function scopeCompleted($query)
     {
-        return $query->where('queue_id', $queueId)
-                    ->orderBy('created_at'); // ຈັດລຳດັບຕາມເວລາເພີ່ມ
+        return $query->where('service_status', 'Completed');
     }
 
-    /**
-     * ບໍລິການທີ່ມອບໝາຍໃຫ້ຜູ້ໃຊ້ສະເພາະ
-     */
-    public function scopeAssignedTo($query, $userId)
+    public function scopeLabServices($query)
     {
-        return $query->where('assigned_to_id', $userId);
+        return $query->whereHas('service', fn($q) => $q->where('has_lab_result', true));
     }
 
-    /**
-     * ບໍລິການທີ່ເພີ່ມວັນນີ້
-     */
-    public function scopeToday($query)
+    // ======================== METHODS ========================
+
+    public function getStatusLabel(): string
     {
-        return $query->whereDate('created_at', today());
+        return self::STATUSES[$this->service_status] ?? $this->service_status;
     }
 
-    // ======================== ACCESSORS & MUTATORS ========================
-
-    /**
-     * ຄິດເວລາທີ່ໃຊ້ຈິງອັດຕະໂນມັດ
-     */
-    protected static function booted()
+    public function getServicePrice(): float
     {
-        static::updating(function (QueueService $queueService) {
-            // ຄິດເວລາທີ່ໃຊ້ຈິງເມື່ອສຳເລັດ
-            if ($queueService->service_status === self::STATUS_COMPLETED && 
-                $queueService->started_at && 
-                $queueService->completed_at &&
-                !$queueService->actual_duration) {
-                
-                $queueService->actual_duration = $queueService->started_at
-                    ->diffInMinutes($queueService->completed_at);
-            }
-        });
+        return $this->service_price ?? $this->service->base_price ?? 0;
     }
 
-    /**
-     * ສະຖານະການດຳເນີນງານ
-     */
-    public function getProgressStatusAttribute(): string
+    // ======================== STATUS CHECKS ========================
+
+    public function canStart(): bool
     {
-        return match($this->service_status) {
-            self::STATUS_ADDED => 'ລໍຖ້າເລີ່ມ',
-            self::STATUS_IN_PROGRESS => 'ກຳລັງດຳເນີນການ',
-            self::STATUS_COMPLETED => "ສຳເລັດ: {$this->completed_at?->format('H:i')}",
-            self::STATUS_CANCELLED => 'ຍົກເລີກ',
-            default => 'ບໍ່ຊັດເຈນ'
-        };
+        return $this->service_status === 'Added';
     }
 
-    /**
-     * ເວລາທີ່ໃຊ້ໃນການເຮັດບໍລິການ (ຖ້າຍັງບໍ່ສຳເລັດ)
-     */
-    public function getCurrentDurationAttribute(): ?int
+    public function canComplete(): bool
     {
-        if (!$this->started_at) return null;
+        return $this->service_status === 'In_Progress';
+    }
+
+    public function isLabService(): bool
+    {
+        return $this->service?->has_lab_result === true;
+    }
+
+    // ======================== STATUS TRANSITIONS ========================
+
+    public function start(User $user = null): bool
+    {
+        if (!$this->canStart()) return false;
         
-        $endTime = $this->completed_at ?? now();
-        return $this->started_at->diffInMinutes($endTime);
+        $updateData = [
+            'service_status' => 'In_Progress',
+            'started_at' => now(),
+        ];
+        
+        if ($user) {
+            $updateData['assigned_to_id'] = $user->id;
+        }
+        
+        // Auto-assign room from service
+        if (!$this->assigned_room_id && $this->service->room_id) {
+            $updateData['assigned_room_id'] = $this->service->room_id;
+            
+            // Occupy the room
+            $room = Room::find($this->service->room_id);
+            if ($room && $room->isAvailable()) {
+                $room->startTesting();
+            }
+        }
+        
+        return $this->update($updateData);
+    }
+
+    public function complete(array $completionData = []): bool
+    {
+        if (!$this->canComplete()) return false;
+        
+        $updateData = [
+            'service_status' => 'Completed',
+            'completed_at' => now(),
+            'actual_duration' => $this->started_at ? 
+                $this->started_at->diffInMinutes(now()) : null,
+        ];
+        
+        // Add completion notes/details
+        if (!empty($completionData['notes'])) {
+            $updateData['notes'] = $this->notes . "\n" . $completionData['notes'];
+        }
+        
+        if (!empty($completionData['service_details'])) {
+            $updateData['service_details'] = array_merge(
+                $this->service_details ?? [],
+                $completionData['service_details']
+            );
+        }
+        
+        $result = $this->update($updateData);
+        
+        // Release room if this was the last service using it
+        if ($result && $this->assigned_room_id) {
+            $room = $this->assignedRoom;
+            if ($room && !$this->hasOtherActiveServices()) {
+                $room->release();
+            }
+        }
+        
+        return $result;
+    }
+
+    public function cancel(string $reason = null): bool
+    {
+        $updateData = [
+            'service_status' => 'Cancelled',
+            'completed_at' => now(),
+        ];
+        
+        if ($reason) {
+            $updateData['notes'] = $this->notes . "\nCancelled: " . $reason;
+        }
+        
+        $result = $this->update($updateData);
+        
+        // Release room
+        if ($result && $this->assigned_room_id) {
+            $room = $this->assignedRoom;
+            if ($room && !$this->hasOtherActiveServices()) {
+                $room->release();
+            }
+        }
+        
+        return $result;
     }
 
     // ======================== HELPER METHODS ========================
 
-    /**
-     * ກວດສອບວ່າສາມາດເລີ່ມໄດ້ບໍ່
-     */
-    public function canStart(): bool
+    public function getDurationFormatted(): string
     {
-        return $this->service_status === self::STATUS_ADDED && $this->assigned_to_id;
-    }
-
-    /**
-     * ກວດສອບວ່າສາມາດສຳເລັດໄດ້ບໍ່
-     */
-    public function canComplete(): bool
-    {
-        return $this->service_status === self::STATUS_IN_PROGRESS;
-    }
-
-    /**
-     * ເລີ່ມບໍລິການ
-     */
-    public function start(): bool
-    {
-        if (!$this->canStart()) {
-            return false;
-        }
-
-        $this->update([
-            'service_status' => self::STATUS_IN_PROGRESS,
-            'started_at' => now(),
-        ]);
-
-        return true;
-    }
-
-    /**
-     * ສຳເລັດບໍລິການ
-     */
-    public function complete(): bool
-    {
-        if (!$this->canComplete()) {
-            return false;
-        }
-
-        $this->update([
-            'service_status' => self::STATUS_COMPLETED,
-            'completed_at' => now(),
-        ]);
-
-        return true;
-    }
-
-    /**
-     * ຍົກເລີກບໍລິການ
-     */
-    public function cancel(string $reason = null): bool
-    {
-        if ($this->service_status === self::STATUS_COMPLETED) {
-            return false;
-        }
-
-        $notes = $this->notes;
-        if ($reason) {
-            $notes .= ($notes ? "\n" : "") . "ຍົກເລີກ: {$reason}";
-        }
-
-        $this->update([
-            'service_status' => self::STATUS_CANCELLED,
-            'notes' => $notes,
-        ]);
-
-        return true;
-    }
-
-    /**
-     * ມອບໝາຍໃຫ້ຜູ້ໃຊ້
-     */
-    public function assignTo(int $userId): bool
-    {
-        $this->update([
-            'assigned_to_id' => $userId,
-        ]);
-
-        return true;
-    }
-
-    // ======================== STATIC HELPER METHODS ========================
-
-    /**
-     * ສ້າງບໍລິການໃໝ່ໃນຄິວ
-     */
-    public static function addToQueue(int $queueId, int $serviceId, int $addedById, int $assignedToId = null): static
-    {
-        return static::create([
-            'queue_id' => $queueId,
-            'service_id' => $serviceId,
-            'added_by_id' => $addedById,
-            'assigned_to_id' => $assignedToId,
-            'service_status' => self::STATUS_ADDED,
-        ]);
-    }
-
-    /**
-     * ດຶງບໍລິການທີ່ຮີບດ່ວນ (ຕາມເວລາສ້າງ - ອັນເກົ່າກ່ອນ)
-     */
-    public static function getUrgentServices()
-    {
-        return static::pending()
-            ->with(['queue.patient', 'service', 'assignedTo'])
-            ->orderBy('created_at')
-            ->get();
-    }
-
-    /**
-     * ດຶງສະຖິຕິການເຮັດວຽກວັນນີ້
-     */
-    public static function getTodayStats(): array
-    {
-        $today = static::today();
+        if (!$this->actual_duration) return '-';
         
-        return [
-            'total' => $today->count(),
-            'completed' => $today->where('service_status', self::STATUS_COMPLETED)->count(),
-            'in_progress' => $today->where('service_status', self::STATUS_IN_PROGRESS)->count(),
-            'pending' => $today->where('service_status', self::STATUS_ADDED)->count(),
-            'cancelled' => $today->where('service_status', self::STATUS_CANCELLED)->count(),
-        ];
+        $hours = intval($this->actual_duration / 60);
+        $minutes = $this->actual_duration % 60;
+        
+        if ($hours > 0) {
+            return $hours . ' ຊົ່ວໂມງ ' . $minutes . ' ນາທີ';
+        }
+        
+        return $minutes . ' ນາທີ';
     }
 
-    /**
-     * ດຶງບໍລິການທີ່ມອບໝາຍໃຫ້ຜູ້ໃຊ້ ແລະ ຍັງບໍ່ສຳເລັດ
-     */
-    public static function getMyPendingWork(int $userId)
+    public function getLabTestDetails(): array
     {
-        return static::assignedTo($userId)
-            ->pending()
-            ->with(['queue.patient', 'service'])
-            ->orderBy('created_at')
-            ->get();
+        if (!$this->isLabService()) return [];
+        
+        return $this->service_details['lab_tests'] ?? [];
+    }
+
+    public function addLabTestDetail(array $testData): bool
+    {
+        if (!$this->isLabService()) return false;
+        
+        $details = $this->service_details ?? [];
+        $details['lab_tests'] = $details['lab_tests'] ?? [];
+        $details['lab_tests'][] = $testData;
+        
+        return $this->update(['service_details' => $details]);
+    }
+
+    private function hasOtherActiveServices(): bool
+    {
+        return QueueService::where('assigned_room_id', $this->assigned_room_id)
+            ->where('id', '!=', $this->id)
+            ->whereIn('service_status', ['Added', 'In_Progress'])
+            ->exists();
     }
 }

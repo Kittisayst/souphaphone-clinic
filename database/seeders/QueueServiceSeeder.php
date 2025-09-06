@@ -16,100 +16,121 @@ class QueueServiceSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->command->info('🔄 ກຳລັງສ້າງບໍລິການສຳລັບຄິວ...');
+        $this->command->info('🏥 ສ້າງຂໍ້ມູນ Queue Services...');
 
-        // ດຶງຂໍ້ມູນທີ່ຈຳເປັນ
-        $queues = Queue::limit(2)->get();
-        $consultationService = Service::where('service_category', 'Consultation')->first();
-        $labService = Service::where('service_category', 'Lab_Test')->first();
+        $queues = Queue::all();
+        $services = Service::all();
         $doctor = User::where('role', 'doctor')->first();
-        $nurse = User::where('role', 'nurse')->first();
+        $technician = User::where('role', 'technician')->first();
 
-        if ($queues->isEmpty() || !$consultationService) {
-            $this->command->warn('⚠️  ຕ້ອງມີຂໍ້ມູນ Queue ແລະ Service ກ່ອນ');
-            return;
-        }
+        $queueServices = [];
 
-        // ບໍລິການກວດທ່ານໝໍສຳລັບຄິວທີ 1 - ສຳເລັດແລ້ວ
-        $this->command->info('📋 ສ້າງບໍລິການກວດທ່ານໝໍສຳລັບຄິວທີ 1...');
-        QueueService::create([
-            'queue_id' => $queues[0]->id,
-            'service_id' => $consultationService->id,
-            'assigned_to_id' => $doctor->id,
-            'service_status' => 'Completed',
-            'started_at' => now()->subHours(2),
-            'completed_at' => now()->subHour(),
-            'actual_duration' => 25, // 25 ນາທີ
-            'added_by_id' => $nurse?->id ?? $doctor->id,
-            'notes' => 'ກວດປົກກະຕິ, ບໍ່ມີບັນຫາ',
-            'created_at' => now()->subHours(3),
-            'updated_at' => now()->subHour(),
-        ]);
-
-        // ບໍລິການ Lab ສຳລັບຄິວທີ 1 - ສຳເລັດແລ້ວ (ຖ້າມີ)
-        if ($labService) {
-            $this->command->info('🧪 ສ້າງບໍລິການກວດ Lab ສຳລັບຄິວທີ 1...');
-            QueueService::create([
-                'queue_id' => $queues[0]->id,
-                'service_id' => $labService->id,
-                'assigned_to_id' => $nurse?->id ?? $doctor->id,
-                'service_status' => 'Completed',
-                'started_at' => now()->subMinutes(90),
-                'completed_at' => now()->subMinutes(60),
-                'actual_duration' => 30, // 30 ນາທີ
-                'added_by_id' => $doctor->id,
-                'notes' => 'ກວດເລືອດແລະປັດສະວະ',
-                'created_at' => now()->subHours(2),
-                'updated_at' => now()->subMinutes(60),
-            ]);
-        }
-
-        // ບໍລິການສຳລັບຄິວທີ 2 - ກຳລັງເຮັດ
-        if ($queues->count() > 1) {
-            $this->command->info('⏳ ສ້າງບໍລິການກວດທ່ານໝໍສຳລັບຄິວທີ 2 (ກຳລັງເຮັດ)...');
-            QueueService::create([
-                'queue_id' => $queues[1]->id,
+        foreach ($queues as $queue) {
+            // ທຸກຄິວມີການປຶກສາ
+            $consultationService = $services->where('service_category', 'Consultation')->first();
+            $queueServices[] = [
+                'queue_id' => $queue->id,
                 'service_id' => $consultationService->id,
-                'assigned_to_id' => $doctor->id,
-                'service_status' => 'In_Progress',
-                'started_at' => now()->subMinutes(20),
-                'added_by_id' => $nurse?->id ?? $doctor->id,
-                'notes' => 'ກວດສຸຂະພາບປົກກະຕິ',
-                'created_at' => now()->subHours(1),
-                'updated_at' => now()->subMinutes(20),
-            ]);
+                'added_by_id' => $queue->created_by,
+                'assigned_to_id' => $queue->doctor_id,
+                'service_status' => $this->getServiceStatus($queue->queue_status, 'consultation'),
+                'assigned_room_id' => $consultationService->room_id,
+                'started_at' => $this->getStartedAt($queue),
+                'completed_at' => $this->getCompletedAt($queue, 'consultation'),
+                'notes' => 'ການປຶກສາທ່ານໝໍ',
+                'service_price' => $consultationService->base_price,
+                'created_at' => $queue->created_at,
+                'updated_at' => $queue->updated_at,
+            ];
 
-            // ເພີ່ມບໍລິການ Lab ສຳລັບຄິວທີ 2 - ຍັງບໍ່ເລີ່ມ
-            if ($labService) {
-                $this->command->info('🧪 ສ້າງບໍລິການກວດ Lab ສຳລັບຄິວທີ 2 (ລໍຖ້າ)...');
-                QueueService::create([
-                    'queue_id' => $queues[1]->id,
+            // ບາງຄິວມີການກວດ Lab
+            if (in_array($queue->id, [1, 2])) {
+                $labService = $services->where('service_category', 'Laboratory')->first();
+                $queueServices[] = [
+                    'queue_id' => $queue->id,
                     'service_id' => $labService->id,
-                    'assigned_to_id' => $nurse?->id ?? $doctor->id,
+                    'added_by_id' => $queue->doctor_id,
+                    'assigned_to_id' => $technician->id,
+                    'service_status' => $this->getServiceStatus($queue->queue_status, 'lab'),
+                    'assigned_room_id' => $labService->room_id,
+                    'started_at' => $this->getStartedAt($queue, 30),
+                    'completed_at' => $this->getCompletedAt($queue, 'lab'),
+                    'notes' => 'ກວດເລືອດທົ່ວໄປ - CBC',
+                    'service_details' => [
+                        'lab_tests' => ['CBC', 'ເລືອດແດງ', 'ເລືອດຂາວ'],
+                        'sample_type' => 'ເລືອດ',
+                        'doctor_instructions' => 'ກວດເປົ່າທ້ອງ'
+                    ],
+                    'service_price' => $labService->base_price,
+                    'created_at' => $queue->created_at->addMinutes(45),
+                    'updated_at' => $queue->updated_at,
+                ];
+            }
+
+            // ຄິວທີ 4 ມີການກວດ X-Ray
+            if ($queue->id == 4) {
+                $xrayService = $services->where('service_category', 'X_Ray')->first();
+                $queueServices[] = [
+                    'queue_id' => $queue->id,
+                    'service_id' => $xrayService->id,
+                    'added_by_id' => $queue->doctor_id ?? $doctor->id,
+                    'assigned_to_id' => $technician->id,
                     'service_status' => 'Added',
-                    'added_by_id' => $doctor->id,
-                    'notes' => 'ລໍຖ້າການກວດທ່ານໝໍສຳເລັດກ່ອນ',
-                    'created_at' => now()->subMinutes(15),
-                    'updated_at' => now()->subMinutes(15),
-                ]);
+                    'assigned_room_id' => $xrayService->room_id,
+                    'notes' => 'ຖ່າຍ X-Ray ໜ້າເອິກ',
+                    'service_price' => $xrayService->base_price,
+                    'created_at' => $queue->created_at->addMinutes(30),
+                    'updated_at' => $queue->updated_at,
+                ];
             }
         }
 
-        // ສະແດງສະຖິຕິ
-        $totalServices = QueueService::count();
-        $completedServices = QueueService::where('service_status', 'Completed')->count();
-        $inProgressServices = QueueService::where('service_status', 'In_Progress')->count();
-        $pendingServices = QueueService::where('service_status', 'Added')->count();
+        foreach ($queueServices as $qsData) {
+            QueueService::create($qsData);
+        }
 
-        $this->command->info('✅ ສ້າງຂໍ້ມູນ Queue Service ສຳເລັດ!');
-        $this->command->table(
-            ['ສະຖານະ', 'ຈຳນວນ'],
-            [
-                ['ລວມທັງໝົດ', $totalServices],
-                ['ສຳເລັດແລ້ວ', $completedServices],
-                ['ກຳລັງເຮັດ', $inProgressServices],
-                ['ລໍຖ້າ', $pendingServices],
-            ]
-        );
+        $this->command->info("✅ ສ້າງ Queue Services: " . count($queueServices) . " ລາຍການ");
+    }
+
+    private function getServiceStatus(string $queueStatus, string $serviceType): string
+    {
+        if ($serviceType === 'consultation') {
+            return match ($queueStatus) {
+                'Registered', 'Vital_Checked' => 'Added',
+                'With_Doctor' => 'In_Progress',
+                default => 'Completed'
+            };
+        }
+
+        if ($serviceType === 'lab') {
+            return match ($queueStatus) {
+                'Waiting_Test_Results' => 'In_Progress',
+                'Results_Ready', 'Ready_For_Payment', 'Completed' => 'Completed',
+                default => 'Added'
+            };
+        }
+
+        return 'Added';
+    }
+
+    private function getStartedAt(Queue $queue, int $addMinutes = 0): ?\Carbon\Carbon
+    {
+        if ($queue->doctor_start_at) {
+            return $queue->doctor_start_at->addMinutes($addMinutes);
+        }
+        return null;
+    }
+
+    private function getCompletedAt(Queue $queue, string $serviceType): ?\Carbon\Carbon
+    {
+        if ($serviceType === 'consultation' && in_array($queue->queue_status, ['Waiting_Test_Results', 'Results_Ready', 'Ready_For_Payment', 'Completed'])) {
+            return $queue->doctor_start_at?->addMinutes(30);
+        }
+
+        if ($serviceType === 'lab' && in_array($queue->queue_status, ['Results_Ready', 'Ready_For_Payment', 'Completed'])) {
+            return $queue->tests_completed_at;
+        }
+
+        return null;
     }
 }

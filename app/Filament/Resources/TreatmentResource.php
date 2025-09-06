@@ -44,58 +44,7 @@ class TreatmentResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('queue.queue_number')
-                    ->label('ລຳດັບຄິວ')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('patient.full_name')
-                    ->label('ຊື່ຄົນໄຂ້')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('service.service_name')
-                    ->label('ບໍລິການ')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('room.room_name')
-                    ->label('ຫ້ອງ')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('performedBy.name')
-                    ->label('ຜູ້ປິ່ນປົວ')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('treatment_started_at')
-                    ->label('ເລີ່ມປິ່ນປົວ')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('treatment_ended_at')
-                    ->label('ສິ້ນສຸດການປິ່ນປົວ')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('treatment_duration')
-                    ->label('ໄລຍະເວລາ (ນາທີ)')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('status_lao')
-                    ->label('ສະຖານະ')
-                    ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'ກຳລັງເຮັດ' => 'info',
-                        'ສຳເລັດ' => 'success',
-                        'ຍົກເລີກ' => 'danger',
-                        default => 'gray',
-                    })
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('examination_notes')
-                    ->label('ບັນທຶກການກວດ')
-                    ->limit(50)
-                    ->tooltip(fn(Treatment $record): string => $record->examination_notes ?? ''),
-                Tables\Columns\TextColumn::make('findings')
-                    ->label('ຜົນການກວດພົບ')
-                    ->limit(50)
-                    ->tooltip(fn(Treatment $record): string => $record->findings ?? ''),
-                Tables\Columns\TextColumn::make('recommendations')
-                    ->label('ຄຳແນະນຳ')
-                    ->limit(50)
-                    ->tooltip(fn(Treatment $record): string => $record->recommendations ?? ''),
+               
             ])
             ->filters([
                 //

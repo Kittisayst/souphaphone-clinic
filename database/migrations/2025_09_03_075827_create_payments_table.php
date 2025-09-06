@@ -13,62 +13,68 @@ return new class extends Migration {
             Schema::create('payments', function (Blueprint $table) {
                   $table->id()->comment('ລະຫັດການຈ່າຍເງິນ (Primary Key)');
 
-                  // ຄວາມສຳພັນຫຼັກ
                   $table->unsignedBigInteger('treatment_id')
                         ->comment('ລະຫັດການປິ່ນປົວ (Foreign Key)');
 
-                  // ລາຍການຄ່າໃຊ້ຈ່າຍ
-                  $table->decimal('consultation_fee', 10, 2)->default(0)
-                        ->comment('ຄ່າກວດ');
-                  $table->decimal('lab_fees', 10, 2)->default(0)
-                        ->comment('ຄ່າກວດ Lab');
-                  $table->decimal('medication_fees', 10, 2)->default(0)
-                        ->comment('ຄ່າຢາ');
-                  $table->decimal('other_fees', 10, 2)->default(0)
-                        ->comment('ຄ່າໃຊ້ຈ່າຍອື່ນໆ');
+                  // ລາຍການທີ່ຈ່າຍເງິນ
+                  $table->json('payment_items')
+                        ->comment('ລາຍການທີ່ຈ່າຍເງິນ (JSON)');
 
-                  // ລວມ & ສ່ວນຫຼຸດ
-                  $table->decimal('subtotal', 10, 2)
-                        ->comment('ລວມຍ່ອຍ');
+                  // ຈຳນວນເງິນ
+                  $table->decimal('subtotal_amount', 10, 2)
+                        ->comment('ກອນໂທນລວມ');
                   $table->decimal('discount_amount', 10, 2)->default(0)
-                        ->comment('ຍອດສ່ວນຫຼຸດ');
+                        ->comment('ຈຳນວນສ່ວນຫຼຸດ');
+                  $table->decimal('tax_amount', 10, 2)->default(0)
+                        ->comment('ຈຳນວນພາສີ');
                   $table->decimal('total_amount', 10, 2)
-                        ->comment('ຍອດລວມສຸດທ້າຍ');
+                        ->comment('ກອນໂທນລວມສຸດທ້າຍ');
 
                   // ການຈ່າຍເງິນ
-                  $table->enum('payment_method', ['Cash', 'Transfer', 'Card', 'Insurance'])
-                        ->comment('ວິທີການຈ່າຍເງິນ');
+                  $table->enum('payment_method', [
+                        'Cash',      // ເງິນສົດ
+                        'Transfer',  // ໂອນເງິນ
+                        'Card',      // ບັດເຄຣດິດ
+                        'Insurance'  // ປະກັນໄພ
+                  ])->comment('ວິທີການຈ່າຍເງິນ');
+
                   $table->decimal('paid_amount', 10, 2)
-                        ->comment('ຍອດທີ່ຈ່າຍ');
+                        ->comment('ກອນໂທນທີ່ຈ່າຍ');
                   $table->decimal('change_amount', 10, 2)->default(0)
                         ->comment('ເງິນທອນ');
 
-                  // ການບັນທຶກ
+                  // ສະຖານະການຈ່າຍເງິນ
+                  $table->enum('payment_status', [
+                        'Pending',   // ລໍຖ້າ
+                        'Paid',      // ຈ່າຍແລ້ວ
+                        'Refunded',  // ຄືນເງິນແລ້ວ
+                        'Cancelled'  // ຍົກເລີກ
+                  ])->default('Pending')->comment('ສະຖານະການຈ່າຍເງິນ');
+
+                  // ຜູ້ດຳເນີນການ
                   $table->unsignedBigInteger('cashier_id')
                         ->comment('ພະນັກງານເກັບເງິນ');
-                  $table->timestamp('paid_at')->useCurrent()
+                  $table->timestamp('paid_at')->nullable()
                         ->comment('ເວລາຈ່າຍເງິນ');
+
+                  // ໃບເກັບເງິນ
                   $table->string('receipt_number', 20)->unique()
                         ->comment('ເລກທີ່ໃບເກັບເງິນ');
-
-                  // ໝາຍເຫດ
                   $table->text('notes')->nullable()
                         ->comment('ໝາຍເຫດການຈ່າຍເງິນ');
 
                   $table->timestamps();
                   $table->softDeletes();
 
-                  // Foreign Keys
-                  $table->foreign('treatment_id')->references('id')->on('treatments')
-                        ->onDelete('cascade')->comment('ເຊື່ອມໂຍງກັບການປິ່ນປົວ');
-                  $table->foreign('cashier_id')->references('id')->on('users')
-                        ->comment('ເຊື່ອມໂຍງກັບພະນັກງານເກັບເງິນ');
-
                   // Indexes
-                  $table->index('treatment_id', 'idx_treatment');
-                  $table->index('receipt_number', 'idx_receipt_number');
-                  $table->index(['cashier_id', 'paid_at'], 'idx_cashier_date');
-                  $table->index('payment_method', 'idx_payment_method');
+                  $table->index('treatment_id');
+                  $table->index(['cashier_id', 'paid_at']);
+                  $table->index('payment_method');
+                  $table->index('payment_status');
+
+                  // Foreign Keys
+                  $table->foreign('treatment_id')->references('id')->on('treatments');
+                  $table->foreign('cashier_id')->references('id')->on('users');
             });
       }
 

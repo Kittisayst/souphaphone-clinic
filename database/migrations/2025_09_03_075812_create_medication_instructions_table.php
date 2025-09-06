@@ -13,70 +13,63 @@ return new class extends Migration {
             Schema::create('medication_instructions', function (Blueprint $table) {
                   $table->id()->comment('ລະຫັດການສັ່ງຢາ (Primary Key)');
 
-                  // ຄວາມສຳພັນຫຼັກ
                   $table->unsignedBigInteger('treatment_id')
                         ->comment('ລະຫັດການປິ່ນປົວ (Foreign Key)');
                   $table->unsignedBigInteger('medicine_id')
                         ->comment('ລະຫັດຢາ (Foreign Key)');
 
-                  // ຄຳສັ່ງການໃຊ້ຢາ
+                  // ຂໍ້ມູນການສັ່ງຢາ
                   $table->string('dosage', 100)->nullable()
                         ->comment('ຂະໜາດຢາຕໍ່ເທື່ອ (500mg, 1 ແຜັດ)');
                   $table->string('frequency', 100)->nullable()
-                        ->comment('ຄວາມຖີ່ (ວັນລະ 2 ເທື່ອ, ກິນຕອນເຊົ້າ-ແລງ)');
+                        ->comment('ຄວາມຖີ່ (ວັນລະ 2 ເທື່ອ, ກິນຕອນເຊົ້າ)');
                   $table->string('duration', 100)->nullable()
-                        ->comment('ໄລຍະເວລາ (5 ວັນ, 1 ສັບປະດາ)');
-                  $table->decimal('quantity', 8, 2)
-                        ->comment('ຈຳນວນທີ່ສັ່ງ');
-                  $table->text('instructions')->nullable()
-                        ->comment('ຄຳແນະນຳການໃຊ້ຢາ');
+                        ->comment('ໄລຍະເວລາ (7 ວັນ, 2 ອາທິດ)');
+                  $table->integer('total_quantity')
+                        ->comment('ຈຳນວນທັງໝົດທີ່ຕ້ອງການ');
+
+                  // ຄຳແນະນຳການໃຊ້
+                  $table->text('administration_route')->nullable()
+                        ->comment('ວິທີການໃຊ້ (ກິນ, ທາ, ສັກ)');
+                  $table->text('special_instructions')->nullable()
+                        ->comment('ຄຳແນະນຳພິເສດ (ກິນກ່ອນອາຫານ, ຫຼັງອາຫານ)');
+                  $table->text('warnings')->nullable()
+                        ->comment('ຄຳເຕືອນ');
 
                   // ລາຄາ
-                  $table->decimal('unit_price', 8, 2)->nullable()
+                  $table->decimal('unit_price', 10, 2)
                         ->comment('ລາຄາຕໍ່ຫົວໜ່ວຍ');
-                  $table->decimal('total_price', 10, 2)->nullable()
+                  $table->decimal('total_price', 10, 2)
                         ->comment('ລາຄາລວມ');
 
-                  // ການສັ່ງຢາ
+                  // ສະຖານະການຈ່າຍຢາ
+                  $table->enum('dispensing_status', [
+                        'Prescribed',  // ສັ່ງແລ້ວ
+                        'Dispensed',   // ຈ່າຍແລ້ວ
+                        'Cancelled'    // ຍົກເລີກ
+                  ])->default('Prescribed')->comment('ສະຖານະການຈ່າຍຢາ');
+
                   $table->unsignedBigInteger('prescribed_by')
-                        ->comment('ທ່ານໝໍທີ່ສັ່ງຢາ');
-                  $table->timestamp('prescribed_at')->useCurrent()
-                        ->comment('ເວລາສັ່ງຢາ');
-
-                  // ການຈ່າຍຢາ
+                        ->comment('ທ່ານໝໍທີ່ສັ່ງ');
                   $table->unsignedBigInteger('dispensed_by')->nullable()
-                        ->comment('ຜູ້ຈ່າຍຢາ');
-                  $table->decimal('dispensed_quantity', 8, 2)->nullable()
-                        ->comment('ຈຳນວນທີ່ຈ່າຍຈິງ');
+                        ->comment('ເ຀ມີທີ່ຈ່າຍຢາ');
                   $table->timestamp('dispensed_at')->nullable()
-                        ->comment('ເວລາຈ່າຍຢາ');
-
-                  // ສະຖານະ
-                  $table->enum('status', [
-                        'Prescribed',   // ສັ່ງແລ້ວ
-                        'Dispensed',    // ຈ່າຍແລ້ວ
-                        'Cancelled'     // ຍົກເລີກ
-                  ])->default('Prescribed')
-                        ->comment('ສະຖານະການສັ່ງຢາ');
+                        ->comment('ເວລາທີ່ຈ່າຍຢາ');
 
                   $table->timestamps();
                   $table->softDeletes();
 
-                  // Foreign Keys
-                  $table->foreign('treatment_id')->references('id')->on('treatments')
-                        ->onDelete('cascade')->comment('ເຊື່ອມໂຍງກັບການປິ່ນປົວ');
-                  $table->foreign('medicine_id')->references('id')->on('medicines')
-                        ->comment('ເຊື່ອມໂຍງກັບຂໍ້ມູນຢາ');
-                  $table->foreign('prescribed_by')->references('id')->on('users')
-                        ->comment('ເຊື່ອມໂຍງກັບທ່ານໝໍທີ່ສັ່ງຢາ');
-                  $table->foreign('dispensed_by')->references('id')->on('users')
-                        ->onDelete('set null')->comment('ເຊື່ອມໂຍງກັບຜູ້ຈ່າຍຢາ');
-
                   // Indexes
-                  $table->index(['treatment_id', 'status'], 'idx_treatment_status');
-                  $table->index('prescribed_by', 'idx_prescribed_by');
-                  $table->index(['medicine_id', 'created_at'], 'idx_medicine_date');
-                  $table->index(['dispensed_by', 'dispensed_at'], 'idx_dispensed');
+                  $table->index(['treatment_id', 'dispensing_status']);
+                  $table->index('medicine_id');
+                  $table->index('prescribed_by');
+                  $table->index('dispensed_by');
+
+                  // Foreign Keys
+                  $table->foreign('treatment_id')->references('id')->on('treatments');
+                  $table->foreign('medicine_id')->references('id')->on('medicines');
+                  $table->foreign('prescribed_by')->references('id')->on('users');
+                  $table->foreign('dispensed_by')->references('id')->on('users');
             });
       }
 

@@ -1,11 +1,14 @@
 <?php
+// app/Models/Queue.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Facades\DB;
 
 class Queue extends Model
 {
@@ -17,394 +20,271 @@ class Queue extends Model
         'waiting_number',
         'queue_date',
         'initial_complaint',
+        'queue_status',
         'doctor_id',
         'assigned_room_id',
         'room_assigned_at',
-        'queue_status',
-        'priority_level',
-        'vital_checked_at',
         'doctor_start_at',
-        'completed_at',
-        'created_by'
+        'tests_completed_at',
+        'payment_completed_at',
+        'priority_level',
+        'created_by',
+        'updated_by',
     ];
+
     protected $casts = [
         'queue_date' => 'date',
-        'vital_checked_at' => 'datetime',
+        'room_assigned_at' => 'datetime',
         'doctor_start_at' => 'datetime',
-        'lab_start_at' => 'datetime',
-        'results_ready_at' => 'datetime',
-        'completed_at' => 'datetime',
+        'tests_completed_at' => 'datetime',
+        'payment_completed_at' => 'datetime',
     ];
 
-    // =================== GENERATORS ===================
-    protected static function boot()
-    {
-        parent::boot();
+    // ======================== CONSTANTS ========================
 
-        // 🔥 Auto-fill ເມື່ອສ້າງ Queue ໃໝ່
-        static::creating(function ($queue) {
-            // ✅ Auto queue_number ຖ້າບໍ່ມີ
-            if (empty($queue->queue_number)) {
-                $queue->queue_number = self::getNextQueueNumber($queue->queue_date);
-            }
+    public const STATUSES = [
+        'Registered' => '1. ລົງທະບຽນແລ້ວ',
+        'Vital_Checked' => '2. ກວດ vital signs ແລ້ວ',
+        'With_Doctor' => '3. ຢູ່ກັບທ່ານໝໍ',
+        'Waiting_Test_Results' => '4. ລໍຖ້າຜົນກວດ',
+        'Results_Ready' => '5a. ຜົນກວດພ້ອມ',
+        'Ready_For_Payment' => '5b. ພ້ອມຈ່າຍເງິນ',
+        'Completed' => '6. ສຳເລັດ',
+        'Cancelled' => 'ຍົກເລີກ',
+    ];
 
-            // ✅ Auto waiting_number ຖ້າບໍ່ມີ
-            if (empty($queue->waiting_number)) {
-                $queue->waiting_number = self::getNextWaitingNumber();
-            }
+    public const PRIORITIES = [
+        'Normal' => 'ປົກກະຕິ',
+        'Urgent' => 'ຮີບ',
+        'Emergency' => 'ສຸກເສີນ',
+    ];
 
-            // ✅ Auto queue_date ຖ້າບໍ່ມີ
-            if (empty($queue->queue_date)) {
-                $queue->queue_date = now()->toDateString();
-            }
+    // ======================== RELATIONSHIPS ========================
 
-            // ✅ Auto created_by ຖ້າບໍ່ມີ
-            if (empty($queue->created_by)) {
-                $queue->created_by = auth()->id();
-            }
-
-            // ✅ Auto queue_status ຖ້າບໍ່ມີ
-            if (empty($queue->queue_status)) {
-                $queue->queue_status = 'Registered';
-            }
-
-            // ✅ Auto priority_level ຖ້າບໍ່ມີ
-            if (empty($queue->priority_level)) {
-                $queue->priority_level = 'Normal';
-            }
-        });
-    }
-
-    // =================== RELATIONSHIPS ===================
-
-    public function patient()
+    public function patient(): BelongsTo
     {
         return $this->belongsTo(Patient::class);
     }
-    public function doctor()
+
+    public function doctor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'doctor_id');
     }
-    public function creator()
+
+    public function assignedRoom(): BelongsTo
+    {
+        return $this->belongsTo(Room::class, 'assigned_room_id');
+    }
+
+    public function createdBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
-    public function queueServices()
+
+    public function updatedBy(): BelongsTo
     {
-        return $this->hasMany(QueueService::class);
+        return $this->belongsTo(User::class, 'updated_by');
     }
-    public function vitalSign()
+
+    public function vitalSigns(): HasOne
     {
         return $this->hasOne(VitalSign::class);
     }
-    public function treatments()
+
+    public function queueServices(): HasMany
     {
-        return $this->hasManyThrough(Treatment::class, QueueService::class);
-    }
-    public function labTests()
-    {
-        return $this->hasManyThrough(LabTest::class, QueueService::class);
-    }
-    public function medicationInstructions()
-    {
-        return $this->hasMany(MedicationInstruction::class);
-    }
-    public function payment()
-    {
-        return $this->hasOne(Payment::class);
+        return $this->hasMany(QueueService::class);
     }
 
-    // =================== ACCESSORS ===================
-    // Status Check Methods
-    public function isRegistered(): bool
-    {
-        return $this->queue_status === 'Registered';
-    }
-    public function isVitalChecked(): bool
-    {
-        return $this->queue_status === 'Vital_Checked';
-    }
-    public function isWithDoctor(): bool
-    {
-        return $this->queue_status === 'With_Doctor';
-    }
-    public function isLabTesting(): bool
-    {
-        return $this->queue_status === 'Lab_Testing';
-    }
-    public function isResultsReady(): bool
-    {
-        return $this->queue_status === 'Results_Ready';
-    }
-    public function isCompleted(): bool
-    {
-        return $this->queue_status === 'Completed';
-    }
-    public function isCancelled(): bool
-    {
-        return $this->queue_status === 'Cancelled';
-    }
+    // ======================== SCOPES ========================
 
-    public function hasVitalSigns(): bool
-    {
-        return $this->vitalSign()->exists();
-    }
-
-
-
-    // =================== SCOPES ===================
-
-    // ຄິວຂອງວັນນີ້
     public function scopeToday($query)
     {
         return $query->whereDate('queue_date', today());
     }
 
-    // ຄິວຕາມສະຖານະ
     public function scopeByStatus($query, $status)
     {
         return $query->where('queue_status', $status);
     }
 
-    // ຄິວທີ່ລໍຖ້າ
     public function scopeWaiting($query)
     {
-        return $query->where('queue_status', 'Registered');
+        return $query->where('waiting_number', '>', 0);
     }
 
-    // ຄິວທີ່ສຳເລັດ
-    public function scopeCompleted($query)
+    public function scopeByPriority($query, $priority)
     {
-        return $query->where('queue_status', 'Completed');
+        return $query->where('priority_level', $priority);
     }
 
-    // ຄິວຂອງທ່ານໝໍ
-    public function scopeByDoctor($query, $doctorId)
+    // ======================== METHODS ========================
+
+    public function getStatusLabel(): string
     {
-        return $query->where('assigned_doctor_id', $doctorId);
+        return self::STATUSES[$this->queue_status] ?? $this->queue_status;
     }
 
-    // =================== ACCESSORS ===================
+    public function getPriorityLabel(): string
+    {
+        return self::PRIORITIES[$this->priority_level] ?? $this->priority_level;
+    }
 
-    // ເລກຄິວທີ່ຈັດຮູບແບບ
-    public function getFormattedQueueNumberAttribute()
+    public function getQueueNumberFormatted(): string
     {
         return str_pad($this->queue_number, 3, '0', STR_PAD_LEFT);
     }
 
-    // ສະຖານະເປັນພາສາລາວ
-    public function getStatusLaoAttribute()
+    public static function generateQueueNumber($date = null): int
     {
-        $statuses = [
-            'Registered' => 'ລົງທະບຽນແລ້ວ',
-            'Vital_Checked' => 'ກວດເບື້ອງຕົ້ນແລ້ວ',
-            'With_Doctor' => 'ຢູ່ກັບທ່ານໝໍ',
-            'Lab_Testing' => 'ກວດແລັບ',
-            'Results_Ready' => 'ຜົນກວດພ້ອມ',
-            'Completed' => 'ສຳເລັດ',
-            'Cancelled' => 'ຍົກເລີກ'
-        ];
-
-        return $statuses[$this->queue_status] ?? $this->queue_status;
+        $date = $date ?? today();
+        $lastQueue = static::whereDate('queue_date', $date)->max('queue_number');
+        return ($lastQueue ?? 0) + 1;
     }
 
-    public function statusColor()
+    public function generateWaitingNumber(): int
     {
-        return match ($this->queue_status) {
-            'Registered' => 'info',
-            'Vital_Checked' => 'warning',
-            'With_Doctor' => 'info',
-            'Lab_Testing' => 'warning',
-            'Results_Ready' => 'success',
-            'Completed' => 'success',
-            'Cancelled' => 'danger',
-            default => 'gray',
-        };
-    }
-    // ====================== Helper =================================
-    /**
-     * ສ້າງເລກຄິວໃໝ່ສຳລັບວັນນີ້
-     */
-    public static function getNextQueueNumber($date = null): int
-    {
-        $date = $date ?? now()->toDateString();
-
-        return DB::transaction(function () use ($date) {
-            // ✅ ໃຊ້ MAX() + 1 ໃນ query ດຽວ
-            $result = DB::selectOne('
-            SELECT COALESCE(MAX(queue_number), 0) + 1 as next_number 
-            FROM queues 
-            WHERE queue_date = ? 
-            FOR UPDATE
-        ', [$date]);
-
-            return $result->next_number;
-        });
+        $maxWaiting = static::whereDate('queue_date', $this->queue_date)
+            ->where('waiting_number', '>', 0)
+            ->max('waiting_number');
+        return ($maxWaiting ?? 0) + 1;
     }
 
-    /**
-     * ສ້າງເລກລໍຖ້າໃໝ່
-     */
-    public static function getNextWaitingNumber(): int
-    {
-        return DB::transaction(function () {
-            // ✅ ໃຊ້ MAX() + 1 ໃນ query ດຽວ
-            $result = DB::selectOne('
-            SELECT COALESCE(MAX(waiting_number), 0) + 1 as next_number 
-            FROM queues 
-            WHERE waiting_number > 0 
-            FOR UPDATE
-        ');
+    // ======================== STATUS CHECKS ========================
 
-            return $result->next_number;
-        });
+    public function canRecordVitalSigns(): bool
+    {
+        return $this->queue_status === 'Registered';
     }
 
-    /**
-     * ຂັ້ນຕອນທີ 2: ກວດເບື້ອງຕົ້ນ (Vital Signs)
-     */
-    public function completeVitalSigns(): bool
+    public function canCallToDoctor(): bool
     {
-        $this->queue_status = 'Vital_Checked';
-        $this->vital_checked_at = now();
-        return $this->save();
+        return $this->queue_status === 'Vital_Checked' && $this->vitalSigns()->exists();
     }
 
-    /**
-     * ຂັ້ນຕອນທີ 3: ເຂົ້າພົບທ່ານໝໍ
-     */
-    public function startDoctorConsultation(): bool
+    public function canStartTesting(): bool
     {
-        $this->queue_status = 'With_Doctor';
-        $this->doctor_start_at = now();
-        return $this->save();
+        return $this->queue_status === 'With_Doctor';
     }
 
-    /**
-     * ຂັ້ນຕອນທີ 4: ສົ່ງກວດແລັບ (ຖ້າຈຳເປັນ)
-     */
-    public function sendToLab(): bool
+    public function canCompleteTests(): bool
     {
-        $this->queue_status = 'Lab_Testing';
-        $this->lab_start_at = now();
-        return $this->save();
+        return $this->queue_status === 'Waiting_Test_Results';
     }
 
-    /**
-     * ຂັ້ນຕອນທີ 5: ຜົນກວດພ້ອມ (ຫຼື skip ຖ້າບໍ່ມີແລັບ)
-     */
-    public function markResultsReady(): bool
+    public function canProcessPayment(): bool
     {
-        $this->queue_status = 'Results_Ready';
-        $this->results_ready_at = now();
-        return $this->save();
+        return $this->queue_status === 'Ready_For_Payment';
     }
 
-    /**
-     * ຂັ້ນຕອນທີ 6: ສຳເລັດການກວດ
-     */
-    public function completeQueue(): bool
+    // ======================== STATUS TRANSITIONS ========================
+
+    public function markVitalChecked(): bool
     {
-        $oldWaitingNumber = $this->waiting_number;
-
-        $this->queue_status = 'Completed';
-        $this->completed_at = now();
-        $this->waiting_number = 0;
-
-        if ($oldWaitingNumber > 0) {
-            return DB::transaction(function () use ($oldWaitingNumber) {
-                // ✅ ບັນທຶກການ complete
-                $result = $this->save();
-
-                // ✅ ອັບເດດຄິວອື່ນດ້ວຍ SQL ດຽວ
-                DB::statement('
-                UPDATE queues 
-                SET waiting_number = waiting_number - 1 
-                WHERE waiting_number > ? 
-                AND queue_status != "Completed" 
-                AND queue_status != "Cancelled"
-            ', [$oldWaitingNumber]);
-
-                return $result;
-            });
-        }
-
-        return $this->save();
+        if (!$this->canRecordVitalSigns()) return false;
+        
+        return $this->update([
+            'queue_status' => 'Vital_Checked',
+            'updated_by' => auth()->id(),
+        ]);
     }
 
-    /**
-     * Skip ແລັບ: ຈາກ With_Doctor ໄປ Results_Ready ໂດຍກົງ
-     */
-    public function skipLabToResults(): bool
+    public function assignToDoctor(User $doctor, Room $room): bool
     {
-        if ($this->queue_status === 'With_Doctor') {
-            return $this->markResultsReady();
-        }
-        return false;
+        if (!$this->canCallToDoctor()) return false;
+        
+        return $this->update([
+            'queue_status' => 'With_Doctor',
+            'doctor_id' => $doctor->id,
+            'assigned_room_id' => $room->id,
+            'room_assigned_at' => now(),
+            'doctor_start_at' => now(),
+            'updated_by' => auth()->id(),
+        ]);
     }
 
-    /**
-     * ຍົກເລີກຄິວ
-     */
-    public function cancelQueue(): bool
+    public function startTesting(): bool
     {
-        $this->queue_status = 'Cancelled';
-        $oldWaitingNumber = $this->waiting_number;
-        $this->waiting_number = 0;
-
-        // ປັບ waiting_number ຂອງຄິວທີ່ຍັງລໍຖ້າ
-        self::where('waiting_number', '>', $oldWaitingNumber)
-            ->decrement('waiting_number');
-
-        return $this->save();
+        if (!$this->canStartTesting()) return false;
+        
+        return $this->update([
+            'queue_status' => 'Waiting_Test_Results',
+            'updated_by' => auth()->id(),
+        ]);
     }
 
-    /**
-     * ຄຳນວນເວລາລໍຖ້າຄາດຄະເນ
-     */
-    public function getEstimatedWaitingTimeAttribute(): string
+    public function markTestsCompleted(): bool
     {
-        if ($this->waiting_number <= 0) {
-            return 'ສຳເລັດແລ້ວ';
-        }
-
-        // ຄາດຄະເນຕາມຂັ້ນຕອນ
-        $minutesPerStep = match ($this->queue_status) {
-            'Registered' => 15,      // ລໍຖ້າກວດເບື້ອງຕົ້ນ
-            'Vital_Checked' => 20,   // ລໍຖ້າພົບທ່ານໝໍ
-            'With_Doctor' => 0,      // ກຳລັງກວດ
-            'Lab_Testing' => 30,     // ລໍຖ້າຜົນແລັບ
-            'Results_Ready' => 10,   // ລໍຖ້າສະຫຼຸບ
-            default => 15
-        };
-
-        $totalMinutes = ($this->waiting_number - 1) * $minutesPerStep;
-        $hours = intval($totalMinutes / 60);
-        $remainingMinutes = $totalMinutes % 60;
-
-        if ($hours > 0) {
-            return "{$hours} ຊົ່ວໂມງ {$remainingMinutes} ນາທີ";
-        }
-        return "{$remainingMinutes} ນາທີ";
+        if (!$this->canCompleteTests()) return false;
+        
+        return $this->update([
+            'queue_status' => 'Results_Ready',
+            'tests_completed_at' => now(),
+            'updated_by' => auth()->id(),
+        ]);
     }
 
-    /**
-     * ກວດສອບວ່າຈຳເປັນຕ້ອງກວດແລັບບໍ່
-     */
-    public function needsLabTesting(): bool
+    public function readyForPayment(): bool
+    {
+        return $this->update([
+            'queue_status' => 'Ready_For_Payment',
+            'updated_by' => auth()->id(),
+        ]);
+    }
+
+    public function complete(): bool
+    {
+        if (!$this->canProcessPayment()) return false;
+        
+        return $this->update([
+            'queue_status' => 'Completed',
+            'payment_completed_at' => now(),
+            'waiting_number' => 0, // ຍົກເລີກເລກລໍຖ້າ
+            'updated_by' => auth()->id(),
+        ]);
+    }
+
+    public function cancel(string $reason = null): bool
+    {
+        return $this->update([
+            'queue_status' => 'Cancelled',
+            'waiting_number' => 0,
+            'updated_by' => auth()->id(),
+        ]);
+    }
+
+    // ======================== HELPER METHODS ========================
+
+    public function hasLabServices(): bool
     {
         return $this->queueServices()
-            ->whereHas('service', function ($query) {
-                $query->where('service_category', 'Laboratory');
-            })
+            ->whereHas('service', fn($q) => $q->where('has_lab_result', true))
             ->exists();
     }
 
-    /**
-     * ສ້າງຄິວໃໝ່ພ້ອມ waiting_number
-     */
-    public static function createNewQueue(array $data): self
+    public function getAllServicesCompleted(): bool
     {
-        return self::create($data);
+        $totalServices = $this->queueServices()->count();
+        $completedServices = $this->queueServices()->where('service_status', 'Completed')->count();
+        
+        return $totalServices > 0 && $totalServices === $completedServices;
+    }
+
+    public function getTotalEstimatedAmount(): float
+    {
+        $serviceTotal = $this->queueServices()
+            ->whereNotNull('service_price')
+            ->sum('service_price');
+            
+        // TODO: Add medication costs when implementing
+        
+        return $serviceTotal;
+    }
+
+    public function getWaitingTime(): ?string
+    {
+        if (!$this->doctor_start_at) return null;
+        
+        return $this->created_at->diffForHumans($this->doctor_start_at);
     }
 }

@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Patient;
+use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -13,58 +14,122 @@ class PatientSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->command->info('🔄 Creating demo patients...');
+        $this->command->info('👥 ສ້າງຂໍ້ມູນຄົນໄຂ້...');
 
-        // ສ້າງຄົນໄຂ້ທົດລອງບາງຄົນ (ສຳລັບການທົດສອບ)
-        $demoPatients = [
+        $receptionist = User::where('role', 'receptionist')->first();
+
+        $patients = [
             [
-                'patient_code' => 'P00001',
+                'patient_code' => 'P0001',
                 'first_name' => 'ສົມຊາຍ',
                 'last_name' => 'ວົງສະຫວັນ',
-                'date_of_birth' => '1980-05-15',
-                'gender' => 'M',
-                'phone_number' => '020 5555 1001',
-                'address' => 'ບ້ານໜອງຄາຍ, ເມືອງໄຊເສດຖາ, ນະຄອນຫລວງວຽງຈັນ',
-                'emergency_contact' => 'ພັນລະຍາ',
-                'emergency_phone' => '020 5555 1002',
-                'blood_type' => 'O+',
-                'allergies' => null,
-                'medical_history' => null,
+                'gender' => 'Male',
+                'birth_date' => '1980-05-15',
+                'phone' => '020-11111111',
+                'email' => null,
+                'address' => 'ບ້ານ ນາຫຼວງ, ເມືອງ ຈັນທະບູລີ, ນະຄອນຫຼວງວຽງຈັນ',
+                'village' => 'ນາຫຼວງ',
+                'district' => 'ຈັນທະບູລີ',
+                'province' => 'ນະຄອນຫຼວງວຽງຈັນ',
+                'emergency_contact_name' => 'ນາງ ບຸນມີ ວົງສະຫວັນ',
+                'emergency_contact_phone' => '020-11111112',
+                'emergency_contact_relationship' => 'ພັນລະຍາ',
+                'medical_history' => 'ມີປະຫວັດຄວາມດັນໂລຫິດສູງ',
+                'allergies' => 'ແພ້ຢາ Penicillin',
+                'chronic_conditions' => 'ໂລກຄວາມດັນສູງ',
+                'is_active' => true,
+                'created_by' => $receptionist->id,
             ],
             [
-                'patient_code' => 'P00002',
-                'first_name' => 'ນາງສົມໃຈ',
-                'last_name' => 'ພອນສະຫວັນ',
-                'date_of_birth' => '1985-08-22',
-                'gender' => 'F',
-                'phone_number' => '020 5555 2001',
-                'address' => 'ບ້ານນາຄຳ, ເມືອງຈັນທະບູລີ, ນະຄອນຫລວງວຽງຈັນ',
-                'emergency_contact' => 'ສາມີ',
-                'emergency_phone' => '020 5555 2002',
-                'blood_type' => 'A+',
-                'allergies' => 'ແພ້ Penicillin',
-                'medical_history' => 'ເຄີຍເປັນເບົາວານຕອນຖືພາ',
+                'patient_code' => 'P0002',
+                'first_name' => 'ນາງ ບຸນທິດ',
+                'last_name' => 'ພອນວິເສດ',
+                'gender' => 'Female',
+                'birth_date' => '1992-08-20',
+                'phone' => '020-22222222',
+                'email' => 'buntid@email.com',
+                'address' => 'ບ້ານ ໂພນໃໝ່, ເມືອງ ໄຊທານີ, ນະຄອນຫຼວງວຽງຈັນ',
+                'village' => 'ໂພນໃໝ່',
+                'district' => 'ໄຊທານີ',
+                'province' => 'ນະຄອນຫຼວງວຽງຈັນ',
+                'emergency_contact_name' => 'ທ້າວ ວິໄລ ພອນວິເສດ',
+                'emergency_contact_phone' => '020-22222223',
+                'emergency_contact_relationship' => 'ສາມີ',
+                'medical_history' => 'ບໍ່ມີປະຫວັດການປ່ວຍຮ້າຍແຮງ',
+                'allergies' => null,
+                'chronic_conditions' => null,
+                'is_active' => true,
+                'created_by' => $receptionist->id,
             ],
             [
-                'patient_code' => 'P00003',
-                'first_name' => 'ເດັກຍິງນ້ອງມານີ',
-                'last_name' => 'ບຸນນາງ',
-                'date_of_birth' => '2015-12-10',
-                'gender' => 'F',
-                'phone_number' => '020 5555 3001',
-                'address' => 'ບ້ານດົງມະຟື, ເມືອງສີໂຄດຕະບອງ, ນະຄອນຫລວງວຽງຈັນ',
-                'emergency_contact' => 'ແມ່',
-                'emergency_phone' => '020 5555 3002',
-                'blood_type' => 'B+',
+                'patient_code' => 'P0003',
+                'first_name' => 'ເດັກຊາຍ ບຸນມີ',
+                'last_name' => 'ສີວິລາຍ',
+                'gender' => 'Male',
+                'birth_date' => '2015-03-10',
+                'phone' => '020-33333333',
+                'email' => null,
+                'address' => 'ບ້ານ ດົງໂດກ, ເມືອງ ສີໂຄດຕະບອງ, ນະຄອນຫຼວງວຽງຈັນ',
+                'village' => 'ດົງໂດກ',
+                'district' => 'ສີໂຄດຕະບອງ',
+                'province' => 'ນະຄອນຫຼວງວຽງຈັນ',
+                'emergency_contact_name' => 'ນາງ ມານີ ສີວິລາຍ',
+                'emergency_contact_phone' => '020-33333333',
+                'emergency_contact_relationship' => 'ແມ່',
+                'medical_history' => 'ເດັກປົກກະຕິ, ໄດ້ຮັບວັກຊີນຄົບຖ້ວນ',
                 'allergies' => null,
-                'medical_history' => 'ເກີດປົກກະຕິ, ສັກຢາຄົບຖ້ວນ',
-            ]
+                'chronic_conditions' => null,
+                'is_active' => true,
+                'created_by' => $receptionist->id,
+            ],
+            [
+                'patient_code' => 'P0004',
+                'first_name' => 'ຜູ້ຍິງ ຄຳພອນ',
+                'last_name' => 'ອິນທະວົງ',
+                'gender' => 'Female',
+                'birth_date' => '1965-12-05',
+                'phone' => '020-44444444',
+                'email' => null,
+                'address' => 'ບ້ານ ຫາດຊາຍ, ເມືອງ ຫາດຊາຍໂຝນ, ນະຄອນຫຼວງວຽງຈັນ',
+                'village' => 'ຫາດຊາຍ',
+                'district' => 'ຫາດຊາຍໂຝນ',
+                'province' => 'ນະຄອນຫຼວງວຽງຈັນ',
+                'emergency_contact_name' => 'ທ້າວ ບຸນສົມ ອິນທະວົງ',
+                'emergency_contact_phone' => '020-44444445',
+                'emergency_contact_relationship' => 'ສາມີ',
+                'medical_history' => 'ມີປະຫວັດເບົາຫວານ, ຄວາມດັນສູງ',
+                'allergies' => 'ແພ້ອາຫານທະເລ',
+                'chronic_conditions' => 'ເບົາຫວານ, ຄວາມດັນສູງ',
+                'is_active' => true,
+                'created_by' => $receptionist->id,
+            ],
+            [
+                'patient_code' => 'P0005',
+                'first_name' => 'ທ້າວ ອານຸພາບ',
+                'last_name' => 'ລາວັນ',
+                'gender' => 'Male',
+                'birth_date' => '1975-07-25',
+                'phone' => '020-55555555',
+                'email' => 'anupab@email.com',
+                'address' => 'ບ້ານ ຊຽງຍືນ, ເມືອງ ຊຽງຍືນ, ນະຄອນຫຼວງວຽງຈັນ',
+                'village' => 'ຊຽງຍືນ',
+                'district' => 'ຊຽງຍືນ',
+                'province' => 'ນະຄອນຫຼວງວຽງຈັນ',
+                'emergency_contact_name' => 'ນາງ ນິດດາ ລາວັນ',
+                'emergency_contact_phone' => '020-55555556',
+                'emergency_contact_relationship' => 'ພັນລະຍາ',
+                'medical_history' => 'ມີປະຫວັດປວດຫຼັງ',
+                'allergies' => null,
+                'chronic_conditions' => null,
+                'is_active' => true,
+                'created_by' => $receptionist->id,
+            ],
         ];
 
-        foreach ($demoPatients as $patient) {
-            Patient::create($patient);
+        foreach ($patients as $patientData) {
+            Patient::create($patientData);
         }
 
-        $this->command->info('✅ Created demo patients successfully');
+        $this->command->info("✅ ສ້າງຄົນໄຂ້: " . count($patients) . " ຄົນ");
     }
 }

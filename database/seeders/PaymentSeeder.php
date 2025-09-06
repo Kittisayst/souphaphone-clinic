@@ -10,49 +10,64 @@ class PaymentSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->command->info('ກຳລັງສ້າງຂໍ້ມູນການຈ່າຍເງິນສຳລັບຄິວທີ 1...');
+        $this->command->info('💳 ສ້າງຂໍ້ມູນການຈ່າຍເງິນ...');
 
-        // ດຶງ Treatment ທີ່ສຳເລັດແລ້ວ
-        $treatment = Treatment::where('status', 'Completed')->first();
+        $treatments = Treatment::with(['medicationInstructions'])->get();
         $cashier = User::where('role', 'cashier')->first();
-        $admin = User::where('role', 'admin')->first();
 
-        if (!$treatment) {
-            $this->command->warn('ຕ້ອງມີຂໍ້ມູນ Treatment (Completed) ກ່ອນ');
-            return;
+        $payments = [];
+
+        foreach ($treatments as $treatment) {
+            $queue = $treatment->getQueue();
+
+            // ສ້າງການຈ່າຍເງິນສຳລັບຄິວທີ່ສຳເລັດແລ້ວ
+            if ($queue->queue_status === 'Completed') {
+                $payment = new Payment();
+                $payment->initializeFromTreatment($treatment);
+
+                // ກໍລະນີຄິວທີ 1 - ຈ່າຍເງິນສົດ
+                if ($queue->id === 1) {
+                    $payment->payment_method = 'Cash';
+                    $payment->paid_amount = 130000; // ຈ່າຍເກີນ
+                    $payment->payment_status = 'Paid';
+                    $payment->cashier_id = $cashier->id;
+                    $payment->paid_at = now()->subMinutes(30);
+                    $payment->calculateAmounts();
+                    $payment->notes = 'ຈ່າຍເງິນສົດ';
+                }
+
+                $payments[] = $payment->toArray();
+            }
+
+            // ສ້າງການຈ່າຍເງິນລໍຖ້າສຳລັບຄິວອື່ນ
+            elseif (in_array($queue->queue_status, ['Results_Ready', 'Ready_For_Payment'])) {
+                $payment = new Payment();
+                $payment->initializeFromTreatment($treatment);
+                $payment->payment_status = 'Pending';
+
+                $payments[] = $payment->toArray();
+            }
         }
 
-        // ຄິດໄລຄາຈາກການປິ່ນປົວ
-        $medicationFees = $treatment->medicationInstructions()
-            ->where('status', 'Dispensed')
-            ->sum('total_price');
+        foreach ($payments as $paymentData) {
+            // ລຶບ fields ທີ່ບໍ່ຈຳເປັນ
+            unset($paymentData['id']);
+            Payment::create($paymentData);
+        }
 
-        $consultationFee = 50000; // ຄ່າກວດມາດຕະຖານ
-        $labFees = 25000; // ຄ່າກວດ Lab
-        $subtotal = $consultationFee + $labFees + $medicationFees;
+        $this->command->info("✅ ສ້າງການຈ່າຍເງິນ: " . count($payments) . " ລາຍການ");
 
-        // ສ້າງການຈ່າຍເງິນ
-        Payment::create([
-            'treatment_id' => $treatment->id,
-            'consultation_fee' => $consultationFee,
-            'lab_fees' => $labFees,
-            'medication_fees' => $medicationFees,
-            'other_fees' => 0,
-            'subtotal' => $subtotal,
-            'discount_amount' => 0,
-            'total_amount' => $subtotal,
-            'payment_method' => 'Cash',
-            'paid_amount' => 100000, // ຈ່າຍ 100,000 ກີບ
-            'change_amount' => 100000 - $subtotal, // ເງິນທອນ
-            'cashier_id' => $cashier?->id ?? $admin?->id ?? 1,
-            'paid_at' => now()->subMinutes(15),
-            'receipt_number' => 'RC' . now()->format('Ymd') . '0001',
-            'notes' => 'ການຈ່າຍເງິນເປັນເງິນສົດ',
-            'created_at' => now()->subMinutes(15),
-            'updated_at' => now()->subMinutes(15),
-        ]);
+        // ສະແດງສະຖິຕິ
+        $totalPaid = Payment::where('payment_status', 'Paid')->sum('total_amount');
+        $totalPending = Payment::where('payment_status', 'Pending')->sum('total_amount');
 
-        $this->command->info('✅ ສ້າງຂໍ້ມູນ Payment ສຳເລັດ: 1 ລາຍການ');
-        $this->command->info("💰 ຍອດລວມ: " . number_format($subtotal) . " ກີບ");
+        $this->command->table(
+            ['ສະຖານະ', 'ຈຳນວນ', 'ລວມເງິນ'],
+            [
+                ['ຈ່າຍແລ້ວ', Payment::where('payment_status', 'Paid')->count(), number_format($totalPaid) . ' ກີບ'],
+                ['ລໍຖ້າຈ່າຍ', Payment::where('payment_status', 'Pending')->count(), number_format($totalPending) . ' ກີບ'],
+                ['ລວມທັງໝົດ', Payment::count(), number_format($totalPaid + $totalPending) . ' ກີບ'],
+            ]
+        );
     }
 }

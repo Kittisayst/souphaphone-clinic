@@ -1,10 +1,13 @@
 <?php
+// app/Models/Patient.php
 
 namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Patient extends Model
@@ -15,109 +18,91 @@ class Patient extends Model
         'patient_code',
         'first_name',
         'last_name',
-        'date_of_birth',
         'gender',
-        'phone_number',
+        'birth_date',
+        'phone',
+        'email',
         'address',
-        'emergency_contact',
-        'emergency_phone',
-        'blood_type',
+        'village',
+        'district',
+        'province',
+        'emergency_contact_name',
+        'emergency_contact_phone',
+        'emergency_contact_relationship',
+        'medical_history',
         'allergies',
-        'medical_history'
+        'chronic_conditions',
+        'is_active',
+        'created_by',
     ];
 
     protected $casts = [
-        'date_of_birth' => 'date',
+        'birth_date' => 'date',
+        'is_active' => 'boolean',
     ];
 
-    // =================== RELATIONSHIPS ===================
+    protected $appends = ['full_name', 'age'];
 
-    // ຄິວທັງໝົດຂອງຄົນໄຂ້ຄົນນີ້
-    public function queues()
+    // ======================== ATTRIBUTES ========================
+
+    public function getFullNameAttribute(): string
+    {
+        return trim($this->first_name . ' ' . $this->last_name);
+    }
+
+    public function getAgeAttribute(): ?int
+    {
+        return Carbon::parse($this->birth_date)?->age;
+    }
+
+    // ======================== RELATIONSHIPS ========================
+
+    public function createdBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function queues(): HasMany
     {
         return $this->hasMany(Queue::class);
     }
 
-    // ຄິວລ່າສຸດ
-    public function latestQueue()
+    // ======================== SCOPES ========================
+
+    public function scopeActive($query)
     {
-        return $this->hasOne(Queue::class)->latest();
+        return $query->where('is_active', true);
     }
 
-    // ຄິວທີ່ຍັງບໍ່ສຳເລັດ
-    public function activeQueues()
+    public function scopeSearch($query, $search)
     {
-        return $this->hasMany(Queue::class)->whereNotIn('queue_status', ['Completed', 'Cancelled']);
+        return $query->where(function ($q) use ($search) {
+            $q->where('first_name', 'like', "%{$search}%")
+              ->orWhere('last_name', 'like', "%{$search}%")
+              ->orWhere('patient_code', 'like', "%{$search}%")
+              ->orWhere('phone', 'like', "%{$search}%");
+        });
     }
 
-    // ການກວດເບື້ອງຕົ້ນທັງໝົດ (ຜ່ານ queues)
-    public function vitalSigns()
+    // ======================== METHODS ========================
+
+    public static function generatePatientCode(): string
     {
-        return $this->hasManyThrough(VitalSign::class, Queue::class);
+        $lastPatient = static::withTrashed()->latest('id')->first();
+        $nextNumber = ($lastPatient?->id ?? 0) + 1;
+        return 'P' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 
-    // ໃບສັ່ງຢາທັງໝົດ (ຜ່ານ queues)
-    public function medicationInstructions()
+    public function getTodayQueue(): ?Queue
     {
-        return $this->hasManyThrough(MedicationInstruction::class, Queue::class);
+        return $this->queues()->whereDate('queue_date', today())->first();
     }
 
-    // ການຈ່າຍເງິນທັງໝົດ (ຜ່ານ queues)
-    public function payments()
+    public function hasActiveQueue(): bool
     {
-        return $this->hasManyThrough(Payment::class, Queue::class);
-    }
-
-    // =================== ACCESSORS ===================
-
-    // ຊື່ເຕັມ
-    public function getFullNameAttribute()
-    {
-        $prefix = match ($this->gender) {
-            'M' => 'ທ້າວ',
-            'F' => 'ນາງ',
-            'Other' => '',
-            default => ''
-        };
-
-        return trim("{$prefix} {$this->first_name} {$this->last_name}");
-    }
-
-    // ອາຍຸ
-    public function getAgeAttribute()
-    {
-        return $this->date_of_birth ? Carbon::parse($this->date_of_birth)->age : null;
-    }
-
-    // ຊື່ສະແດງກັບລະຫັດ
-    public function getDisplayNameAttribute()
-    {
-        return "{$this->patient_code} - {$this->full_name}";
-    }
-
-    // ============= Scopes ===================
-
-    // ຄົນໄຂ້ຕາມເພດ
-    public function scopeByGender($query, $gender)
-    {
-        return $query->where('gender', $gender);
-    }
-
-    // ຄົນໄຂ້ທີ່ມີອາຍຸຫຼາຍກວ່າ
-    public function scopeAgeGreaterThan($query, $age)
-    {
-        return $query->whereYear('date_of_birth', '<=', now()->subYears($age)->year);
-    }
-
-    // ຄົນໄຂ້ທີ່ມີອາຍຸໜ້ອຍກວ່າ
-    public function scopeAgeLessThan($query, $age)
-    {
-        return $query->whereYear('date_of_birth', '>=', now()->subYears($age)->year);
-    }
-
-    // ຄົນໄຂ້ທີ່ລົງທະບຽນໃນມື້ນີ້
-    public function scopeRegisteredToday($query)
-    {
-        return $query->whereDate('created_at', today());
+        return $this->queues()
+            ->whereDate('queue_date', today())
+            ->whereNotIn('queue_status', ['Completed', 'Cancelled'])
+            ->exists();
     }
 }

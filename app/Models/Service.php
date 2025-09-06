@@ -1,9 +1,12 @@
 <?php
+// app/Models/Service.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Service extends Model
@@ -17,73 +20,103 @@ class Service extends Model
         'base_price',
         'description',
         'duration_minutes',
-        'requires_room',
-        'room_type_required',
-        'template_lab',
-        'has_lab_result'
+        'room_id',
+        'has_lab_result',
+        'lab_test_types',
+        'is_active',
     ];
 
     protected $casts = [
         'base_price' => 'decimal:2',
         'duration_minutes' => 'integer',
-        'requires_room' => 'boolean',
         'has_lab_result' => 'boolean',
-        'template_lab' => 'array',
+        'lab_test_types' => 'json',
+        'is_active' => 'boolean',
     ];
 
-    // =================== RELATIONSHIPS ===================
+    // ======================== CONSTANTS ========================
 
-    // การเลือกบริการในคิว
-    public function queueServices()
+    public const CATEGORIES = [
+        'Consultation' => 'ປຶກສາ',
+        'Laboratory' => 'ແລັບ',
+        'X_Ray' => 'X-Ray',
+        'Ultrasound' => 'ອັນຕາຊາວ',
+        'Blood_Test' => 'ກວດເລືອດ',
+        'Urine_Test' => 'ກວດປັດສະວະ',
+        'ECG' => 'ເອັກຊີຈີ',
+        'Treatment' => 'ການຮັກສາ',
+        'Imaging' => 'ຖ່າຍພາບ',
+        'Pharmacy' => 'ຢາ',
+        'Other' => 'ອື່ນໆ',
+    ];
+
+    // ======================== RELATIONSHIPS ========================
+
+    public function room(): BelongsTo
+    {
+        return $this->belongsTo(Room::class);
+    }
+
+    public function queueServices(): HasMany
     {
         return $this->hasMany(QueueService::class);
     }
 
-    // คิวที่เลือกบริการนี้
-    public function queues()
-    {
-        return $this->belongsToMany(Queue::class, 'queue_services')
-            ->withPivot(['service_status', 'priority_order', 'added_by_id'])
-            ->withTimestamps();
-    }
+    // ======================== SCOPES ========================
 
-    // =================== SCOPES ===================
-
-    // บริการที่ใช้งานอยู่
     public function scopeActive($query)
     {
-        return $query->whereNull('deleted_at');
+        return $query->where('is_active', true);
     }
 
-    // บริการตามประเภท
     public function scopeByCategory($query, $category)
     {
         return $query->where('service_category', $category);
     }
 
-    // บริการที่ต้องการห้อง
-    public function scopeRequiresRoom($query)
-    {
-        return $query->where('requires_room', true);
-    }
-
-    // บริการที่มีผลตรวจ
-    public function scopeWithLabResult($query)
+    public function scopeLabServices($query)
     {
         return $query->where('has_lab_result', true);
     }
 
-    // =================== ACCESSORS ===================
+    // ======================== METHODS ========================
 
-    // แสดงชื่อพร้อมรหัส
-    public function getDisplayNameAttribute()
+    public function getCategoryLabel(): string
     {
-        return "{$this->service_code} - {$this->service_name}";
+        return self::CATEGORIES[$this->service_category] ?? $this->service_category;
     }
 
-    // ราคาที่จัดรูปแบบ
-    public function getFormattedPriceAttribute()
+    public function requiresRoom(): bool
     {
-        return number_format((int) $this->base_price, 0) . ' ກີບ';
+        return !is_null($this->room_id);
+    }
+
+    public function isLabService(): bool
+    {
+        return $this->has_lab_result === true;
+    }
+
+    public function getLabTestTypes(): array
+    {
+        return $this->lab_test_types ?? [];
+    }
+
+    public function getPriceFormatted(): string
+    {
+        return number_format((int)$this->base_price) . ' ກີບ';
+    }
+
+    public function getDurationFormatted(): string
+    {
+        if (!$this->duration_minutes) return '-';
+        
+        $hours = intval($this->duration_minutes / 60);
+        $minutes = $this->duration_minutes % 60;
+        
+        if ($hours > 0) {
+            return $hours . ' ຊົ່ວໂມງ ' . $minutes . ' ນາທີ';
+        }
+        
+        return $minutes . ' ນາທີ';
     }
 }

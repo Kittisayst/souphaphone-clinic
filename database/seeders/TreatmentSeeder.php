@@ -10,60 +10,116 @@ class TreatmentSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->command->info('ກຳລັງສ້າງຂໍ້ມູນການປິ່ນປົວສຳລັບຄິວທີ 1...');
+        $this->command->info('🏥 ສ້າງຂໍ້ມູນການປິ່ນປົວ...');
 
-        // ດຶງຂໍ້ມູນທີ່ຈຳເປັນ
-        $queueServices = QueueService::where('service_status', 'Completed')
-            ->whereHas('service', function ($query) {
-                $query->where('service_category', 'Consultation');
-            })
-            ->limit(2)->get();
+        $consultationServices = QueueService::whereHas('service', function ($q) {
+            $q->where('service_category', 'Consultation');
+        })->get();
 
-        $doctor = User::where('role', 'doctor')->first();
+        $doctors = User::where('role', 'doctor')->get();
 
-        if ($queueServices->isEmpty() || !$doctor) {
-            $this->command->warn('ຕ້ອງມີຂໍ້ມູນ QueueService (Consultation) ແລະ Doctor ກ່ອນ');
-            return;
-        }
+        $treatments = [];
 
-        // ການປິ່ນປົວທີ 1 - ສຳເລັດແລ້ວ
-        Treatment::create([
-            'queue_service_id' => $queueServices[0]->id,
-            'room_id' => 1, // ສົມມຸດວ່າມີຫ້ອງ ID 1
-            'doctor_id' => $doctor->id,
-            'examination_notes' => 'ກວດພົບ: ອຸນຫະພູມ 38.5°C, ຄໍ້ແດງ, ປວດຫົວ',
-            'findings' => 'ອາການຄ້າຍກັບໄຂ້ຫວັດ, ບໍ່ມີອາການຮ້າຍແຮງ',
-            'medical_history_notes' => 'ບໍ່ເຄີຍມີປະຫວັດການປ່ວຍຮ້າຍແຮງ, ບໍ່ແພ້ຢາ',
-            'diagnosis' => 'ໄຂ້ຫວັດທົ່ວໄປ (Common Cold)',
-            'treatment_plan' => 'ພັກຜ່ອນ, ດື່ມນ້ຳຫຼາຍໆ, ກິນຢາລົດໄຂ້',
-            'follow_up_required' => false,
-            'status' => 'Completed',
-            'updated_by' => $doctor->id,
-            'created_at' => now()->subHours(2),
-            'updated_at' => now()->subHour(),
-        ]);
+        foreach ($consultationServices as $queueService) {
+            $queue = $queueService->queue;
+            $doctor = $doctors->find($queue->doctor_id) ?? $doctors->first();
 
-        // ການປິ່ນປົວທີ 2 - ລໍຖ້າຜົນ Lab
-        if ($queueServices->count() > 1) {
-            Treatment::create([
-                'queue_service_id' => $queueServices[1]->id,
-                'room_id' => 1,
+            $treatmentData = [
+                'queue_service_id' => $queueService->id,
+                'room_id' => $queueService->assigned_room_id,
                 'doctor_id' => $doctor->id,
-                'examination_notes' => 'ກວດສຸຂະພາບປົກກະຕິ, ປ່ວຍສ່ວນ 45 ປີ',
-                'findings' => 'ຄົນໄຂ້ຮູ້ສຶກເມື່ອຍ, ຢາກກວດເລືອດ',
-                'medical_history_notes' => 'ມີປະຫວັດຄອບຄົວເປັນເບົາຫວານ',
-                'diagnosis' => null, // ຍັງບໍ່ມີການວິນິໄຈ
-                'treatment_plan' => null, // ລໍຖ້າຜົນ Lab ກ່ອນ
-                'follow_up_required' => true,
-                'follow_up_date' => today()->addWeek(),
-                'follow_up_notes' => 'ມາເບິ່ງຜົນກວດເລືອດ',
-                'status' => 'Waiting_Lab_Results',
+                'status' => $this->getTreatmentStatus($queue->queue_status),
                 'updated_by' => $doctor->id,
-                'created_at' => now()->subMinutes(20),
-                'updated_at' => now()->subMinutes(10),
-            ]);
+                'created_at' => $queueService->started_at ?? $queue->created_at,
+                'updated_at' => $queueService->completed_at ?? $queue->updated_at,
+            ];
+
+            // ເພີ່ມຂໍ້ມູນຕາມສະຖານະ
+            if ($queue->queue_status !== 'Registered') {
+                $treatmentData = array_merge($treatmentData, $this->getTreatmentDetails($queue));
+            }
+
+            $treatments[] = $treatmentData;
         }
 
-        $this->command->info('✅ ສ້າງຂໍ້ມູນ Treatment ສຳເລັດ: 2 ລາຍການ');
+        foreach ($treatments as $treatmentData) {
+            $treatment = Treatment::create($treatmentData);
+
+            // ອັບເດດ billing items
+            if ($treatment->status === 'Completed') {
+                $treatment->updateBillingItems();
+            }
+        }
+
+        $this->command->info("✅ ສ້າງ Treatment: " . count($treatments) . " ລາຍການ");
+    }
+
+    private function getTreatmentStatus(string $queueStatus): string
+    {
+        return match ($queueStatus) {
+            'Completed' => 'Completed',
+            'Cancelled' => 'Cancelled',
+            default => 'In_Progress'
+        };
+    }
+
+    private function getTreatmentDetails(Queue $queue): array
+    {
+        $patientName = $queue->patient->full_name;
+        $complaint = $queue->initial_complaint;
+
+        switch ($queue->id) {
+            case 1: // ສຳເລັດແລ້ວ - ໄຂ້ຫວັດ
+                return [
+                    'examination_notes' => 'ກວດພົບ: ອຸນຫະພູມ 38.2°C, ຄໍແດງ, ປວດຫົວ ເລັກນ້ອຍ',
+                    'findings' => 'ອາການຄ້າຍກັບໄຂ້ຫວັດທົ່ວໄປ, ບໍ່ມີອາການຮ້າຍແຮງ',
+                    'medical_history_notes' => 'ປະຫວັດຄວາມດັນສູງ, ກິນຢາ Amlodipine ເປັນປົກກະຕິ',
+                    'diagnosis' => 'ໄຂ້ຫວັດທົ່ວໄປ (Common Cold)',
+                    'treatment_plan' => 'ພັກຜ່ອນ, ດື່ມນ້ຳຫຼາຍໆ, ກິນຢາລົດໄຂ້',
+                    'follow_up_required' => false,
+                ];
+
+            case 2: // ລໍຖ້າຜົນ Lab
+                return [
+                    'examination_notes' => 'ກວດຮ່າງກາຍທົ່ວໄປປົກກະຕິ, ຄົນໄຂ້ຮູ້ສຶກເມື່ອຍ',
+                    'findings' => 'ບໍ່ພົບອາການຜິດປົກກະຕິທາງກາຍະພາບ',
+                    'medical_history_notes' => 'ມີປະຫວັດຄອບຄົວເປັນເບົາຫວານ',
+                    'diagnosis' => null, // ຍັງບໍ່ມີການວິນິໄຈ
+                    'treatment_plan' => null, // ລໍຖ້າຜົນ Lab ກ່ອນ
+                    'follow_up_required' => true,
+                    'follow_up_date' => today()->addDays(3),
+                    'follow_up_notes' => 'ມາເບິ່ງຜົນກວດເລືອດ',
+                ];
+
+            case 3: // ກຳລັງກວດ - ເດັກ
+                return [
+                    'examination_notes' => 'ເດັກມີອາການໄອ, ຈາມ, ໄຂ້ເລັກນ້ອຍ',
+                    'findings' => 'ຄໍເປັນສີແດງ, ມີນ້ຳມູກ',
+                    'medical_history_notes' => 'ເດັກມີສຸຂະພາບແຂງແຮງ, ໄດ້ຮັບວັກຊີນຄົບຖ້ວນ',
+                    'diagnosis' => null, // ກຳລັງກວດ
+                    'treatment_plan' => null,
+                    'follow_up_required' => false,
+                ];
+
+            case 4: // ກວດ vital ແລ້ວ
+                return [
+                    'examination_notes' => null, // ຍັງບໍ່ໄດ້ກວດ
+                    'findings' => null,
+                    'medical_history_notes' => 'ມີປະຫວັດເບົາຫວານ, ຄວາມດັນສູງ',
+                    'diagnosis' => null,
+                    'treatment_plan' => null,
+                    'follow_up_required' => false,
+                ];
+
+            default:
+                return [
+                    'examination_notes' => null,
+                    'findings' => null,
+                    'medical_history_notes' => null,
+                    'diagnosis' => null,
+                    'treatment_plan' => null,
+                    'follow_up_required' => false,
+                ];
+        }
     }
 }

@@ -1,8 +1,11 @@
 <?php
+// app/Models/User.php
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -12,16 +15,18 @@ class User extends Authenticatable
     use HasFactory, Notifiable, SoftDeletes;
 
     protected $fillable = [
+        'employee_code',
         'name',
         'email',
         'password',
         'role',
-        'permissions',
-        'is_active',
         'phone',
+        'gender',
+        'birth_date',
         'address',
         'license_number',
         'specializations',
+        'is_active',
     ];
 
     protected $hidden = [
@@ -31,840 +36,259 @@ class User extends Authenticatable
 
     protected $casts = [
         'email_verified_at' => 'datetime',
-        'permissions' => 'array',
-        'specializations' => 'array',
+        'birth_date' => 'date',
+        'specializations' => 'json',
         'is_active' => 'boolean',
         'password' => 'hashed',
     ];
 
-    // =================== RELATIONSHIPS ===================
+    // ======================== CONSTANTS ========================
 
-    // ຄິວທີ່ສ້າງໂດຍຜູ້ໃຊ້ຄົນນີ້
-    public function createdQueues()
+    public const ROLES = [
+        'admin' => 'ຜູ້ດູແລລະບົບ',
+        'doctor' => 'ທ່ານໝໍ',
+        'nurse' => 'ພະຍາບານ',
+        'technician' => 'ເຕັກນິກ',
+        'pharmacist' => 'ເ຀ມີ',
+        'cashier' => 'ເກັບເງິນ',
+        'receptionist' => 'ຮັບບ້ານ',
+    ];
+
+    public const GENDERS = [
+        'Male' => 'ຊາຍ',
+        'Female' => 'ຍິງ',
+        'Other' => 'ອື່ນໆ',
+    ];
+
+    // ======================== RELATIONSHIPS ========================
+
+    public function createdPatients(): HasMany
     {
-        return $this->hasMany(Queue::class, 'created_by_id');
+        return $this->hasMany(Patient::class, 'created_by');
     }
 
-    // ຄິວທີ່ຖືກມອບໝາຍໃຫ້ (ສຳລັບທ່ານໝໍ)
-    public function assignedQueues()
+    public function createdQueues(): HasMany
     {
-        return $this->hasMany(Queue::class, 'assigned_doctor_id');
+        return $this->hasMany(Queue::class, 'created_by');
     }
 
-    // ການກວດເບື້ອງຕົ້ນທີ່ບັນທຶກ
-    public function recordedVitalSigns()
+    public function assignedQueues(): HasMany
     {
-        return $this->hasMany(VitalSign::class, 'recorded_by_id');
+        return $this->hasMany(Queue::class, 'doctor_id');
     }
 
-    // ບໍລິການທີ່ເພີ່ມ
-    public function addedQueueServices()
+    public function currentRoom(): HasMany
+    {
+        return $this->hasMany(Room::class, 'current_user_id');
+    }
+
+    public function addedQueueServices(): HasMany
     {
         return $this->hasMany(QueueService::class, 'added_by_id');
     }
 
-    // ບໍລິການທີ່ຖືກມອບໝາຍ
-    public function assignedQueueServices()
+    public function assignedQueueServices(): HasMany
     {
         return $this->hasMany(QueueService::class, 'assigned_to_id');
     }
 
-    /**
-     * ການປິ່ນປົວທີ່ເຮັດ (ປັບປຸງ field name)
-     */
-    public function performedTreatments()
+    public function treatments(): HasMany
     {
         return $this->hasMany(Treatment::class, 'doctor_id');
     }
 
-    /**
-     * ການປິ່ນປົວທີ່ອັບເດດ
-     */
-    public function updatedTreatments()
+    public function vitalSignsRecords(): HasMany
     {
-        return $this->hasMany(Treatment::class, 'updated_by');
+        return $this->hasMany(VitalSign::class, 'recorded_by');
     }
 
-    /**
-     * ການກວດ Lab ທີ່ເກັບຕົວຢ່າງ
-     */
-    public function collectedLabSamples()
-    {
-        return $this->hasMany(LabTest::class, 'sample_collected_by');
-    }
+    // ======================== SCOPES ========================
 
-    /**
-     * ການກວດ Lab ທີ່ເຮັດ
-     */
-    public function performedLabTests()
-    {
-        return $this->hasMany(LabTest::class, 'tested_by');
-    }
-
-    /**
-     * ຜົນ Lab ທີ່ທ່ານໝໍເບິ່ງ
-     */
-    public function reviewedLabTests()
-    {
-        return $this->hasMany(LabTest::class, 'reviewed_by');
-    }
-
-    /**
-     * ໃບສັ່ງຢາທີ່ສັ່ງ (ປັບປຸງ model name)
-     */
-    public function prescribedMedications()
-    {
-        return $this->hasMany(MedicationInstruction::class, 'prescribed_by');
-    }
-
-    /**
-     * ຢາທີ່ຈ່າຍໃຫ້ຄົນໄຂ້
-     */
-    public function dispensedMedications()
-    {
-        return $this->hasMany(MedicationInstruction::class, 'dispensed_by');
-    }
-
-    /**
-     * ການຈ່າຍເງິນທີ່ຮັບ (ປັບປຸງ field name)
-     */
-    public function processedPayments()
-    {
-        return $this->hasMany(Payment::class, 'cashier_id');
-    }
-
-    // ຫ້ອງທີ່ກຳລັງໃຊ້
-    public function currentRoom()
-    {
-        return $this->hasOne(Room::class, 'current_user_id');
-    }
-
-    // =================== ROLE SCOPES ===================
-
-    // ສະເພາະແອັດມິນ
-    public function scopeAdmins($query)
-    {
-        return $query->where('role', 'admin');
-    }
-
-    // ສະເພາະທ່ານໝໍ
-    public function scopeDoctors($query)
-    {
-        return $query->where('role', 'doctor');
-    }
-
-    // ສະເພາະພະຍາບານ
-    public function scopeNurses($query)
-    {
-        return $query->where('role', 'nurse');
-    }
-
-    // ສະເພາະຜູ້ຮັບເງິນ
-    public function scopeCashiers($query)
-    {
-        return $query->where('role', 'cashier');
-    }
-
-    // ສະເພາະຊ່າງເທັກນິກ
-    public function scopeTechnicians($query)
-    {
-        return $query->where('role', 'technician');
-    }
-
-    // ຜູ້ໃຊ້ທີ່ເຮັດວຽກຢູ່
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
     }
 
-    // ຜູ້ໃຊ້ທີ່ສາມາດເຂົ້າເຖິງຂໍ້ມູນການແພດ
-    public function scopeMedicalStaff($query)
+    public function scopeByRole($query, $role)
     {
-        return $query->whereIn('role', ['doctor', 'nurse']);
+        return $query->where('role', $role);
     }
 
-    // ຜູ້ໃຊ້ທີ່ສາມາດຮັບຄິວ
-    public function scopeCanManageQueue($query)
+    public function scopeDoctors($query)
     {
-        return $query->whereIn('role', ['admin', 'nurse', 'cashier']);
+        return $query->where('role', 'doctor');
     }
 
-    // =================== ROLE CHECK METHODS ===================
-
-    /**
-     * ກວດສອບບົດບາດ
-     */
-    public function hasRole(string $role): bool
+    public function scopeNurses($query)
     {
-        return $this->role === $role;
+        return $query->where('role', 'nurse');
     }
 
-    /**
-     * ກວດສອບບົດບາດຫຼາຍອັນ
-     */
-    public function hasAnyRole(array $roles): bool
+    // ======================== METHODS ========================
+
+    public function getRoleLabel(): string
     {
-        return in_array($this->role, $roles);
+        return self::ROLES[$this->role] ?? $this->role;
     }
 
-    /**
-     * ກວດສອບສິດທິ
-     */
-    public function hasPermission(string $permission): bool
+    public function getGenderLabel(): string
     {
-        if (!$this->permissions)
-            return false;
-
-        return in_array($permission, $this->permissions);
+        return self::GENDERS[$this->gender] ?? $this->gender;
     }
 
-    /**
-     * ເພີ່ມສິດທິ
-     */
-    public function grantPermission(string $permission): void
+    public function getAge(): ?int
     {
-        $permissions = $this->permissions ?? [];
-
-        if (!in_array($permission, $permissions)) {
-            $permissions[] = $permission;
-            $this->update(['permissions' => $permissions]);
-        }
+        return Carbon::parse($this->birth_date)?->age;
     }
 
-    /**
-     * ຖອນສິດທິ
-     */
-    public function revokePermission(string $permission): void
-    {
-        $permissions = $this->permissions ?? [];
+    // ======================== ROLE CHECKS ========================
 
-        $permissions = array_filter($permissions, fn($p) => $p !== $permission);
-        $this->update(['permissions' => array_values($permissions)]);
-    }
-
-    /**
-     * ກວດສອບວ່າມີຄວາມຊ່ຽວຊານບໍ່
-     */
-    public function hasSpecialization(string $specialization): bool
-    {
-        if (!$this->specializations)
-            return false;
-
-        return in_array($specialization, $this->specializations);
-    }
-
-    // =================== ACCESSORS ===================
-
-    /**
-     * ຊື່ບົດບາດເປັນພາສາລາວ
-     */
-    public function getRoleLaoAttribute(): string
-    {
-        $roles = [
-            'admin' => 'ແອັດມິນ',
-            'doctor' => 'ທ່ານໝໍ',
-            'nurse' => 'ພະຍາບານ',
-            'cashier' => 'ພະນັກງານການເງິນ',
-            'technician' => 'ຊ່າງເທັກນິກ'
-        ];
-
-        return $roles[$this->role] ?? $this->role;
-    }
-
-    /**
-     * ຊື່ພ້ອມບົດບາດ
-     */
-    public function getDisplayNameAttribute(): string
-    {
-        return "{$this->name} ({$this->role_lao})";
-    }
-
-    /**
-     * ກວດສອບວ່າເປັນທ່ານໝໍບໍ່
-     */
-    public function getIsDoctorAttribute(): bool
-    {
-        return $this->role === 'doctor';
-    }
-
-    /**
-     * ກວດສອບວ່າເປັນພະຍາບານບໍ່
-     */
-    public function getIsNurseAttribute(): bool
-    {
-        return $this->role === 'nurse';
-    }
-
-    /**
-     * ກວດສອບວ່າເປັນແອັດມິນບໍ່
-     */
-    public function getIsAdminAttribute(): bool
+    public function isAdmin(): bool
     {
         return $this->role === 'admin';
     }
 
-    /**
-     * ກວດສອບວ່າສາມາດເຮັດການແພດໄດ້ບໍ່
-     */
-    public function getCanTreatPatientsAttribute(): bool
+    public function isDoctor(): bool
     {
-        return in_array($this->role, ['doctor', 'nurse']);
+        return $this->role === 'doctor';
     }
 
-    /**
-     * ກວດສອບວ່າສາມາດຈັດການຄິວໄດ້ບໍ່
-     */
-    public function getCanManageQueueAttribute(): bool
+    public function isNurse(): bool
     {
-        return in_array($this->role, ['admin', 'nurse', 'cashier']);
+        return $this->role === 'nurse';
     }
 
-    /**
-     * ກວດສອບວ່າສາມາດເຂົ້າເຖິງລາຍງານການເງິນໄດ້ບໍ່
-     */
-    public function getCanAccessFinancialReportsAttribute(): bool
+    public function isTechnician(): bool
     {
-        return in_array($this->role, ['admin', 'cashier']) ||
-            $this->hasPermission('view_financial_reports');
+        return $this->role === 'technician';
     }
 
-    /**
-     * ລາຍການຄວາມຊ່ຽວຊານທີ່ຈັດຮູບແບບ
-     */
-    public function getFormattedSpecializationsAttribute(): string
+    public function isPharmacist(): bool
     {
-        if (!$this->specializations || empty($this->specializations)) {
-            return 'ບໍ່ມີຄວາມຊ່ຽວຊານສະເພາະ';
-        }
-
-        return implode(', ', $this->specializations);
+        return $this->role === 'pharmacist';
     }
 
-    /**
-     * ສະຖານະການເຮັດວຽກ
-     */
-    public function getWorkStatusAttribute(): string
+    public function isCashier(): bool
     {
-        if (!$this->is_active) {
-            return 'ບໍ່ເຮັດວຽກ';
-        }
-
-        // ກວດສອບວ່າກຳລັງໃຊ້ຫ້ອງຢູ່ບໍ່
-        if ($this->currentRoom) {
-            return "ກຳລັງໃຊ້ຫ້ອງ {$this->currentRoom->room_name}";
-        }
-
-        return 'ພ້ອມເຮັດວຽກ';
+        return $this->role === 'cashier';
     }
 
-    // =================== PERMISSION CONSTANTS ===================
-
-    const PERMISSIONS = [
-        // ການຈັດການຄິວ
-        'manage_queues' => 'ຈັດການຄິວ',
-        'create_queue' => 'ສ້າງຄິວ',
-        'assign_doctor' => 'ມອບໝາຍທ່ານໝໍ',
-
-        // ການແພດ
-        'perform_treatment' => 'ເຮັດການປິ່ນປົວ',
-        'prescribe_medicine' => 'ສັ່ງຢາ',
-        'review_lab_results' => 'ເບິ່ງຜົນກວດ',
-        'dispense_medicine' => 'ຈ່າຍຢາ',
-
-        // ການເງິນ
-        'process_payments' => 'ດໍາເນີນການຈ່າຍເງິນ',
-        'view_financial_reports' => 'ເບິ່ງລາຍງານການເງິນ',
-        'manage_discounts' => 'ຈັດການສ່ວນຫຼຸດ',
-
-        // ການຄຸ້ມຄອງ
-        'manage_users' => 'ຈັດການຜູ້ໃຊ້',
-        'manage_services' => 'ຈັດການບໍລິການ',
-        'manage_medicines' => 'ຈັດການຢາ',
-        'manage_rooms' => 'ຈັດການຫ້ອງ',
-
-        // ລາຍງານ
-        'view_reports' => 'ເບິ່ງລາຍງານ',
-        'export_data' => 'ສົ່ງອອກຂໍ້ມູນ',
-    ];
-
-    const SPECIALIZATIONS = [
-        // ຄວາມຊ່ຽວຊານທ່ານໝໍ
-        'ແພດທົ່ວໄປ',
-        'ແພດເດັກ',
-        'ແພດສູດຕິກ',
-        'ແພດໂລກພາຍໃນ',
-        'ແພດກະດູກ',
-        'ແພດຜິວໜັງ',
-        'ແພດຈັກສູ',
-        'ແພດຫົວໃຈ',
-
-        // ຄວາມຊ່ຽວຊານພະຍາບານ
-        'ພະຍາບານທົ່ວໄປ',
-        'ພະຍາບານເດັກ',
-        'ພະຍາບານຜ່າຕັດ',
-        'ພະຍາບານຫ້ອງສຸກເສີນ',
-
-        // ຄວາມຊ່ຽວຊານຊ່າງເທັກນິກ
-        'ຊ່າງ X-Ray',
-        'ຊ່າງ Ultrasound',
-        'ຊ່າງແລັບ',
-        'ຊ່າງ ECG',
-    ];
-
-    // =================== ROLE-BASED DEFAULT PERMISSIONS ===================
-
-    /**
-     * ສິດທິເບື້ອງຕົ້ນຕາມບົດບາດ
-     */
-    public static function getDefaultPermissions(string $role): array
+    public function isReceptionist(): bool
     {
-        return match ($role) {
-            'admin' => [
-                'manage_queues',
-                'create_queue',
-                'assign_doctor',
-                'manage_users',
-                'manage_services',
-                'manage_medicines',
-                'manage_rooms',
-                'view_financial_reports',
-                'view_reports',
-                'export_data',
-                'process_payments',
-                'manage_discounts',
-                'manage_treatments',
-                'manage_lab_tests',
-                'manage_medications'
-            ],
-
-            'doctor' => [
-                'perform_treatment',
-                'prescribe_medicine',
-                'review_lab_results',
-                'create_queue',
-                'assign_doctor',
-                'view_reports',
-                'order_lab_tests',
-                'update_treatment_plan',
-                'schedule_follow_up'
-            ],
-
-            'nurse' => [
-                'manage_queues',
-                'create_queue',
-                'perform_treatment',
-                'dispense_medicine',
-                'collect_lab_samples',
-                'record_vital_signs',
-                'view_reports'
-            ],
-
-            'cashier' => [
-                'manage_queues',
-                'create_queue',
-                'process_payments',
-                'view_financial_reports',
-                'manage_discounts',
-                'generate_receipts'
-            ],
-
-            'technician' => [
-                'perform_lab_tests',
-                'update_lab_results',
-                'collect_lab_samples',
-                'operate_lab_equipment',
-                'view_reports'
-            ],
-
-            default => []
-        };
+        return $this->role === 'receptionist';
     }
 
-    /**
-     * ມອບສິດທິເບື້ອງຕົ້ນຕາມບົດບາດ
-     */
-    public function assignDefaultPermissions(): void
+    // ======================== PERMISSIONS ========================
+
+    public function canCreatePatients(): bool
     {
-        $defaultPermissions = self::getDefaultPermissions($this->role);
-        $this->update(['permissions' => $defaultPermissions]);
+        return in_array($this->role, ['admin', 'receptionist', 'nurse']);
     }
 
-    // =================== SPECIALIZATION METHODS ===================
-
-    /**
-     * ເພີ່ມຄວາມຊ່ຽວຊານ
-     */
-    public function addSpecialization(string $specialization): void
+    public function canManageQueues(): bool
     {
-        $specializations = $this->specializations ?? [];
-
-        if (!in_array($specialization, $specializations)) {
-            $specializations[] = $specialization;
-            $this->update(['specializations' => $specializations]);
-        }
+        return in_array($this->role, ['admin', 'receptionist', 'nurse']);
     }
 
-    /**
-     * ຖອນຄວາມຊ່ຽວຊານ
-     */
-    public function removeSpecialization(string $specialization): void
+    public function canRecordVitalSigns(): bool
     {
-        $specializations = $this->specializations ?? [];
-
-        $specializations = array_filter($specializations, fn($s) => $s !== $specialization);
-        $this->update(['specializations' => array_values($specializations)]);
+        return in_array($this->role, ['admin', 'nurse']);
     }
 
-    /**
-     * ດຶງຄວາມຊ່ຽວຊານຫຼັກ (ອັນທຳອິດ)
-     */
-    public function getPrimarySpecializationAttribute(): ?string
+    public function canConsultPatients(): bool
     {
-        return $this->specializations[0] ?? null;
+        return in_array($this->role, ['admin', 'doctor']);
     }
 
-    // =================== BUSINESS LOGIC METHODS ===================
-
-    /**
-     * ກວດສອບວ່າສາມາດປິ່ນປົວຄົນໄຂ້ປະເພດນີ້ໄດ້ບໍ່
-     */
-    public function canTreatPatientType(string $patientType): bool
+    public function canPerformLabTests(): bool
     {
-        if (!$this->is_doctor)
-            return false;
-
-        // ທ່ານໝໍທົ່ວໄປສາມາດກວດທຸກຄົນ
-        if ($this->hasSpecialization('ແພດທົ່ວໄປ'))
-            return true;
-
-        // ແພດເດັກສາມາດກວດເດັກເທົ່ານັ້ນ
-        if ($patientType === 'child') {
-            return $this->hasSpecialization('ແພດເດັກ');
-        }
-
-        return true;
+        return in_array($this->role, ['admin', 'technician', 'nurse']);
     }
 
-    /**
-     * ກວດສອບວ່າສາມາດເຮັດບໍລິການປະເພດນີ້ໄດ້ບໍ່
-     */
-    public function canPerformService(string $serviceCategory): bool
+    public function canDispenseMedications(): bool
     {
-        return match ($serviceCategory) {
-            'Consultation' => $this->hasRole('doctor'),
-            'X_Ray' => $this->hasAnyRole(['doctor', 'technician']) &&
-            ($this->hasSpecialization('ຊ່າງ X-Ray') || $this->hasRole('doctor')),
-            'Ultrasound' => $this->hasAnyRole(['doctor', 'technician']) &&
-            ($this->hasSpecialization('ຊ່າງ Ultrasound') || $this->hasRole('doctor')),
-            'Blood_Test', 'Urine_Test' => $this->hasAnyRole(['nurse', 'technician']) &&
-            ($this->hasSpecialization('ຊ່າງແລັບ') || $this->hasRole('nurse')),
-            'ECG' => $this->hasAnyRole(['doctor', 'nurse', 'technician']),
-            default => $this->hasRole('admin')
-        };
+        return in_array($this->role, ['admin', 'pharmacist']);
     }
 
-    /**
-     * ກວດສອບວ່າກຳລັງເຮັດວຽກຢູ່ບໍ່
-     */
-    public function isCurrentlyWorking(): bool
+    public function canProcessPayments(): bool
     {
-        // ກວດສອບຫ້ອງທີ່ກຳລັງໃຊ້
-        if ($this->currentRoom)
-            return true;
-
-        // ກວດສອບການປິ່ນປົວທີ່ຍັງບໍ່ສຳເລັດ
-        $activeTreatments = $this->performedTreatments()
-            ->where('status', 'In_Progress')
-            ->exists();
-
-        return $activeTreatments;
+        return in_array($this->role, ['admin', 'cashier']);
     }
 
-    /**
-     * ດຶງລາຍການຄິວວັນນີ້
-     */
-    public function getTodayQueuesAttribute()
+    public function canManageRooms(): bool
     {
-        if (!$this->is_doctor)
-            return collect();
+        return in_array($this->role, ['admin', 'nurse']);
+    }
 
+    // ======================== HELPER METHODS ========================
+
+    public function getTodayQueues()
+    {
+        return $this->assignedQueues()->today();
+    }
+
+    public function getActiveQueues()
+    {
         return $this->assignedQueues()
-            ->whereDate('queue_date', today())
-            ->orderBy('queue_number')
-            ->with(['patient', 'queueServices.service'])
-            ->get();
+            ->whereNotIn('queue_status', ['Completed', 'Cancelled']);
     }
 
-    /**
-     * ດຶງຈຳນວນຄິວທີ່ລໍຖ້າ
-     */
-    public function getPendingQueuesCountAttribute(): int
+    public function getCurrentRoom(): ?Room
     {
-        if (!$this->is_doctor)
-            return 0;
-
-        return $this->assignedQueues()
-            ->whereDate('queue_date', today())
-            ->whereNotIn('queue_status', ['Completed', 'Cancelled'])
-            ->count();
+        return $this->currentRoom()->first();
     }
 
-    /**
-     * ດຶງການປິ່ນປົວທີ່ຕ້ອງຕິດຕາມ
-     */
-    public function getTreatmentsNeedingFollowUpAttribute()
+    public function getSpecializations(): array
     {
-        if (!$this->is_doctor)
-            return collect();
-
-        return $this->performedTreatments()
-            ->where('follow_up_required', true)
-            ->where('status', Treatment::STATUS_COMPLETED)
-            ->whereDate('follow_up_date', '<=', today())
-            ->with(['queueService.queue.patient'])
-            ->get();
+        return $this->specializations ?? [];
     }
 
-    /**
-     * ດຶງ Lab Tests ທີ່ຕ້ອງກວດສອບ
-     */
-    public function getLabTestsNeedingReviewAttribute()
+    public function hasSpecialization(string $specialization): bool
     {
-        if (!$this->is_doctor)
-            return collect();
-
-        return LabTest::whereHas('treatment', function ($query) {
-            $query->where('doctor_id', $this->id);
-        })
-            ->where('status', LabTest::STATUS_COMPLETED)
-            ->with(['treatment.queueService.queue.patient'])
-            ->get();
+        return in_array($specialization, $this->getSpecializations());
     }
 
-    /**
-     * ດຶງສະຖິຕິການເຮັດວຽກວັນນີ້
-     */
-    public function getTodayWorkStatsAttribute(): array
+    public static function generateEmployeeCode(string $role): string
+    {
+        $prefix = match ($role) {
+            'doctor' => 'DOC',
+            'nurse' => 'NUR',
+            'technician' => 'TEC',
+            'pharmacist' => 'PHA',
+            'cashier' => 'CAS',
+            'receptionist' => 'REC',
+            default => 'EMP'
+        };
+
+        $lastUser = static::withTrashed()
+            ->where('employee_code', 'like', $prefix . '%')
+            ->latest('id')
+            ->first();
+
+        if ($lastUser) {
+            $lastNumber = intval(substr($lastUser->employee_code, 3));
+            $nextNumber = $lastNumber + 1;
+        } else {
+            $nextNumber = 1;
+        }
+
+        return $prefix . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+    }
+
+    public function getWorkload(): array
     {
         $today = today();
 
         return [
-            'treatments_completed' => $this->performedTreatments()
-                ->whereDate('created_at', $today)
-                ->where('status', Treatment::STATUS_COMPLETED)
+            'total_queues' => $this->assignedQueues()->whereDate('queue_date', $today)->count(),
+            'completed_queues' => $this->assignedQueues()
+                ->whereDate('queue_date', $today)
+                ->where('queue_status', 'Completed')
                 ->count(),
-
-            'lab_tests_reviewed' => $this->reviewedLabTests()
-                ->whereDate('reviewed_at', $today)
-                ->count(),
-
-            'medications_prescribed' => $this->prescribedMedications()
-                ->whereDate('prescribed_at', $today)
-                ->count(),
-
-            'medications_dispensed' => $this->dispensedMedications()
-                ->whereDate('dispensed_at', $today)
-                ->count(),
-
-            'payments_processed' => $this->processedPayments()
-                ->whereDate('paid_at', $today)
+            'pending_queues' => $this->assignedQueues()
+                ->whereDate('queue_date', $today)
+                ->whereNotIn('queue_status', ['Completed', 'Cancelled'])
                 ->count(),
         ];
-    }
-
-    /**
-     * ດຶງລາຍໄດ້ທີ່ສ້າງວັນນີ້ (ສຳລັບທ່ານໝໍ)
-     */
-    public function getTodayRevenueAttribute(): float
-    {
-        if (!$this->is_doctor)
-            return 0;
-
-        return Payment::whereHas('treatment', function ($query) {
-            $query->where('doctor_id', $this->id);
-        })
-            ->whereDate('paid_at', today())
-            ->sum('total_amount');
-    }
-
-    // =================== UTILITY METHODS ===================
-
-    /**
-     * Reset ສິດທິເປັນຄ່າເບື້ອງຕົ້ນ
-     */
-    public function resetToDefaultPermissions(): void
-    {
-        $this->assignDefaultPermissions();
-    }
-
-    /**
-     * ອັບເດດເວລາ Login ຫຼ້າສຸດ
-     */
-    public function updateLastLogin(): void
-    {
-        $this->timestamps = false; // ບໍ່ອັບເດດ updated_at
-        $this->update(['last_login' => now()]);
-        $this->timestamps = true;
-    }
-
-    /**
-     * ສ້າງ API Token (ຖ້າໃຊ້ Sanctum)
-     */
-    public function createApiToken(string $name = 'api-token'): string
-    {
-        return $this->createToken($name)->plainTextToken;
-    }
-
-    /**
-     * ດຶງການປິ່ນປົວທີ່ຍັງບໍ່ສຳເລັດ
-     */
-    public function getActiveTreatmentsAttribute()
-    {
-        return $this->performedTreatments()
-            ->whereNotIn('status', [
-                Treatment::STATUS_COMPLETED,
-                Treatment::STATUS_CANCELLED
-            ])
-            ->with(['queueService.queue.patient', 'room'])
-            ->get();
-    }
-
-    /**
-     * ດຶງ Lab Tests ທີ່ຍັງບໍ່ສຳເລັດ
-     */
-    public function getPendingLabTestsAttribute()
-    {
-        return $this->performedLabTests()
-            ->whereNotIn('status', [
-                LabTest::STATUS_REVIEWED,
-                LabTest::STATUS_CANCELLED
-            ])
-            ->with(['treatment.queueService.queue.patient'])
-            ->get();
-    }
-
-    /**
-     * ດຶງຢາທີ່ຍັງບໍ່ໄດ້ຈ່າຍ
-     */
-    public function getPendingMedicationsAttribute()
-    {
-        return $this->prescribedMedications()
-            ->where('status', MedicationInstruction::STATUS_PRESCRIBED)
-            ->with(['treatment.queueService.queue.patient', 'medicine'])
-            ->get();
-    }
-
-    /**
-     * ຄິດຈຳນວນຄົນໄຂ້ທີ່ປິ່ນປົວໃນຊ່ວງເວລາ
-     */
-    public function getPatientsCountInPeriod(\DateTime $startDate, \DateTime $endDate): int
-    {
-        if (!$this->is_doctor)
-            return 0;
-
-        return $this->performedTreatments()
-            ->whereBetween('created_at', [$startDate, $endDate])
-            ->distinct('queue_service_id')
-            ->count();
-    }
-
-    /**
-     * ຄິດລາຍໄດ້ໃນຊ່ວງເວລາ
-     */
-    public function getRevenueInPeriod(\DateTime $startDate, \DateTime $endDate): float
-    {
-        if ($this->is_doctor) {
-            return Payment::whereHas('treatment', function ($query) {
-                $query->where('doctor_id', $this->id);
-            })
-                ->whereBetween('paid_at', [$startDate, $endDate])
-                ->sum('total_amount');
-        }
-
-        if ($this->hasRole('cashier')) {
-            return $this->processedPayments()
-                ->whereBetween('paid_at', [$startDate, $endDate])
-                ->sum('total_amount');
-        }
-
-        return 0;
-    }
-
-    // =================== QUERY OPTIMIZATION METHODS ===================
-
-    /**
-     * ດຶງທ່ານໝໍພ້ອມຂໍ້ມູນການເຮັດວຽກ
-     */
-    public static function getDoctorsWithWorkload()
-    {
-        return static::doctors()
-            ->active()
-            ->withCount([
-                'performedTreatments as active_treatments_count' => function ($query) {
-                    $query->whereNotIn('status', [
-                        Treatment::STATUS_COMPLETED,
-                        Treatment::STATUS_CANCELLED
-                    ]);
-                },
-                'assignedQueues as today_queues_count' => function ($query) {
-                    $query->whereDate('queue_date', today())
-                        ->whereNotIn('queue_status', ['Completed', 'Cancelled']);
-                }
-            ])
-            ->get();
-    }
-
-    /**
-     * ດຶງພະນັກງານທີ່ມີປະສົບການກັບບໍລິການສະເພາະ
-     */
-    public static function getExperiencedStaffForService(string $serviceCategory)
-    {
-        return static::active()
-            ->whereJsonContains('specializations', $serviceCategory)
-            ->orWhere(function ($query) use ($serviceCategory) {
-                // ຖ້າບໍ່ມີຄວາມຊ່ຽວຊານສະເພາະ ແຕ່ມີບົດບາດທີ່ເໝາະສົມ
-                switch ($serviceCategory) {
-                    case 'ຊ່າງແລັບ':
-                        $query->whereIn('role', ['nurse', 'technician']);
-                        break;
-                    case 'ແພດທົ່ວໄປ':
-                        $query->where('role', 'doctor');
-                        break;
-                }
-            })
-            ->get();
-    }
-
-    // =================== QUERY HELPERS ===================
-
-    /**
-     * ດຶງທ່ານໝໍທີ່ວ່າງໃນເວລານີ້
-     */
-    public static function getAvailableDoctors()
-    {
-        return static::doctors()
-            ->active()
-            ->whereDoesntHave('currentRoom')
-            ->get();
-    }
-
-    /**
-     * ດຶງພະຍາບານທີ່ເຮັດວຽກຢູ່
-     */
-    public static function getActiveNurses()
-    {
-        return static::nurses()
-            ->active()
-            ->get();
-    }
-
-    /**
-     * ດຶງຜູ້ໃຊ້ທີ່ສາມາດເຮັດບໍລິການນີ້ໄດ້
-     */
-    public static function getStaffForService(string $serviceCategory)
-    {
-        return static::active()
-            ->get()
-            ->filter(fn($user) => $user->canPerformService($serviceCategory));
     }
 }

@@ -1,4 +1,5 @@
 <?php
+// app/Models/MedicationInstruction.php
 
 namespace App\Models;
 
@@ -6,7 +7,34 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
-
+use Illuminate\Support\Carbon;
+/**
+ * Summary of MedicationInstruction
+ * @property int $id
+ * @property int $treatment_id
+ * @property int $medicine_id
+ * @property string $dosage
+ * @property string $frequency
+ * @property string $duration
+ * @property int $total_quantity
+ * @property string $administration_route
+ * @property string $special_instructions
+ * @property string $warnings
+ * @property float $unit_price
+ * @property float $total_price
+ * @property string $dispensing_status
+ * @property int $prescribed_by
+ * @property int $dispensed_by
+ * @property Carbon|null $dispensed_at
+ * @property Carbon|null $created_at
+ * @property Carbon|null $updated_at
+ * @property Carbon|null $deleted_at
+ *
+ * @property-read Treatment $treatment
+ * @property-read Medicine $medicine
+ * @property-read User $prescribed_by
+ * @property-read User $dispensed_by
+ */
 class MedicationInstruction extends Model
 {
     use HasFactory, SoftDeletes;
@@ -17,320 +45,360 @@ class MedicationInstruction extends Model
         'dosage',
         'frequency',
         'duration',
-        'quantity',
-        'instructions',
+        'total_quantity',
+        'administration_route',
+        'special_instructions',
+        'warnings',
         'unit_price',
         'total_price',
+        'dispensing_status',
         'prescribed_by',
-        'prescribed_at',
         'dispensed_by',
-        'dispensed_quantity',
         'dispensed_at',
-        'status',
     ];
 
     protected $casts = [
-        'quantity' => 'decimal:2',
+        'total_quantity' => 'integer',
         'unit_price' => 'decimal:2',
         'total_price' => 'decimal:2',
-        'dispensed_quantity' => 'decimal:2',
-        'prescribed_at' => 'datetime',
         'dispensed_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
     ];
 
-    // ສະຖານະທີ່ອະນຸຍາດ
-    public const STATUS_PRESCRIBED = 'Prescribed';
-    public const STATUS_DISPENSED = 'Dispensed';
-    public const STATUS_CANCELLED = 'Cancelled';
+    // ======================== CONSTANTS ========================
 
-    public static function getStatuses(): array
-    {
-        return [
-            self::STATUS_PRESCRIBED => 'ສັ່ງແລ້ວ',
-            self::STATUS_DISPENSED => 'ຈ່າຍແລ້ວ',
-            self::STATUS_CANCELLED => 'ຍົກເລີກ',
-        ];
-    }
+    public const DISPENSING_STATUSES = [
+        'Prescribed' => 'ສັ່ງແລ້ວ',
+        'Dispensed' => 'ຈ່າຍແລ້ວ',
+        'Cancelled' => 'ຍົກເລີກ',
+    ];
 
-    public function getStatusLaoAttribute(): string
-    {
-        return self::getStatuses()[$this->status] ?? $this->status;
-    }
+    public const ADMINISTRATION_ROUTES = [
+        'ກິນ' => 'ກິນ (ທາງປາກ)',
+        'ທາ' => 'ທາ (ທາງຜິວ)',
+        'ສັກ' => 'ສັກ (ທາງເສັ້ນເລືອດ)',
+        'ຫຍົດ' => 'ຫຍົດ (ຕາ/ຫູ/ດັງ)',
+        'ສູດ' => 'ສູດ (ທາງຫາຍໃຈ)',
+        'ອື່ນໆ' => 'ອື່ນໆ',
+    ];
 
     // ======================== RELATIONSHIPS ========================
 
-    /**
-     * ການປິ່ນປົວທີ່ເກີ່ຍວຂ້ອງ
-     */
     public function treatment(): BelongsTo
     {
         return $this->belongsTo(Treatment::class);
     }
 
-    /**
-     * ຂໍ້ມູນຢາ
-     */
     public function medicine(): BelongsTo
     {
         return $this->belongsTo(Medicine::class);
     }
 
-    /**
-     * ທ່ານໝໍທີ່ສັ່ງຢາ
-     */
-    public function prescribedByUser(): BelongsTo
+    public function prescribedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'prescribed_by');
     }
 
-    /**
-     * ຜູ້ຈ່າຍຢາ
-     */
-    public function dispensedByUser(): BelongsTo
+    public function dispensedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'dispensed_by');
     }
 
-    // ======================== ACCESSORS & MUTATORS ========================
-
-    /**
-     * ຄຳສັ່ງການໃຊ້ຢາແບບເຕັມ
-     */
-    public function getFullInstructionAttribute(): string
-    {
-        $parts = array_filter([
-            $this->dosage,
-            $this->frequency,
-            $this->duration,
-            $this->instructions
-        ]);
-
-        return implode(' | ', $parts);
-    }
-
-    /**
-     * ຈຳນວນທີ່ຍັງເຫຼືອ
-     */
-    public function getRemainingQuantityAttribute(): float
-    {
-        return $this->quantity - ($this->dispensed_quantity ?? 0);
-    }
-
-    /**
-     * ອັດຕະໂນມັດຄິດໄລຄາລວມ
-     */
-    protected static function booted()
-    {
-        static::saving(function (MedicationInstruction $instruction) {
-            if ($instruction->unit_price && $instruction->quantity) {
-                $instruction->total_price = $instruction->unit_price * $instruction->quantity;
-            }
-        });
-    }
-
     // ======================== SCOPES ========================
 
-    /**
-     * ຢາທີ່ຍັງບໍ່ໄດ້ຈ່າຍ
-     */
-    public function scopePending($query)
+    public function scopeByStatus($query, $status)
     {
-        return $query->where('status', self::STATUS_PRESCRIBED);
+        return $query->where('dispensing_status', $status);
     }
 
-    /**
-     * ຢາທີ່ຈ່າຍແລ້ວ
-     */
+    public function scopePrescribed($query)
+    {
+        return $query->where('dispensing_status', 'Prescribed');
+    }
+
     public function scopeDispensed($query)
     {
-        return $query->where('status', self::STATUS_DISPENSED);
+        return $query->where('dispensing_status', 'Dispensed');
     }
 
-    // ======================== HELPER METHODS ========================
+    public function scopePending($query)
+    {
+        return $query->where('dispensing_status', 'Prescribed');
+    }
 
-    /**
-     * ກວດສອບວ່າສາມາດຈ່າຍຢາໄດ້ບໍ່
-     */
+    public function scopeToday($query)
+    {
+        return $query->whereDate('created_at', today());
+    }
+
+    public function scopeByMedicine($query, $medicineId)
+    {
+        return $query->where('medicine_id', $medicineId);
+    }
+
+    // ======================== ATTRIBUTES ========================
+
+    public function getInstructionSummaryAttribute(): string
+    {
+        $parts = [];
+        
+        if ($this->dosage) {
+            $parts[] = $this->dosage;
+        }
+        
+        if ($this->frequency) {
+            $parts[] = $this->frequency;
+        }
+        
+        if ($this->duration) {
+            $parts[] = $this->duration;
+        }
+        
+        return implode(', ', $parts);
+    }
+
+    public function getFullInstructionAttribute(): string
+    {
+        $instruction = $this->medicine->medicine_name;
+        
+        if ($this->dosage) {
+            $instruction .= ' - ' . $this->dosage;
+        }
+        
+        if ($this->frequency) {
+            $instruction .= ', ' . $this->frequency;
+        }
+        
+        if ($this->duration) {
+            $instruction .= ', ' . $this->duration;
+        }
+        
+        if ($this->administration_route) {
+            $instruction .= ' (' . $this->administration_route . ')';
+        }
+        
+        return $instruction;
+    }
+
+    // ======================== METHODS ========================
+
+    public function getDispensingStatusLabel(): string
+    {
+        return self::DISPENSING_STATUSES[$this->dispensing_status] ?? $this->dispensing_status;
+    }
+
+    public function getAdministrationRouteLabel(): string
+    {
+        return self::ADMINISTRATION_ROUTES[$this->administration_route] ?? $this->administration_route;
+    }
+
+    public function getTotalPriceFormatted(): string
+    {
+        return number_format((int)$this->total_price) . ' ກີບ';
+    }
+
+    public function getUnitPriceFormatted(): string
+    {
+        return number_format((int)$this->unit_price) . ' ກີບ/' . $this->medicine->getUnitLabel();
+    }
+
+    public function getQuantityFormatted(): string
+    {
+        return number_format($this->total_quantity) . ' ' . $this->medicine->getUnitLabel();
+    }
+
+    // ======================== STATUS CHECKS ========================
+
     public function canDispense(): bool
     {
-        return $this->status === self::STATUS_PRESCRIBED
-            && $this->remaining_quantity > 0;
+        return $this->dispensing_status === 'Prescribed' &&
+               $this->medicine->canDispense($this->total_quantity);
     }
 
-    /**
-     * ຈ່າຍຢາ
-     */
-    public function dispense(float $quantity, int $dispensedBy): bool
+    public function canCancel(): bool
     {
-        if (!$this->canDispense() || $quantity > $this->remaining_quantity) {
+        return $this->dispensing_status === 'Prescribed';
+    }
+
+    public function isDispensed(): bool
+    {
+        return $this->dispensing_status === 'Dispensed';
+    }
+
+    public function isPending(): bool
+    {
+        return $this->dispensing_status === 'Prescribed';
+    }
+
+    // ======================== STATUS TRANSITIONS ========================
+
+    public function dispense(User $pharmacist): bool
+    {
+        if (!$this->canDispense()) {
             return false;
         }
-
-        $this->update([
-            'dispensed_quantity' => $quantity,
-            'dispensed_by' => $dispensedBy,
+        
+        // Check stock availability
+        if (!$this->medicine->isInStock($this->total_quantity)) {
+            return false;
+        }
+        
+        // Reduce medicine stock
+        $stockReduced = $this->medicine->reduceStock($this->total_quantity);
+        if (!$stockReduced) {
+            return false;
+        }
+        
+        // Update dispensing status
+        return $this->update([
+            'dispensing_status' => 'Dispensed',
+            'dispensed_by' => $pharmacist->id,
             'dispensed_at' => now(),
-            'status' => self::STATUS_DISPENSED,
         ]);
-
-        return true;
-    }
-}
-
-// ==================================================================================
-// app/Models/Payment.php
-
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\SoftDeletes;
-
-class Payment extends Model
-{
-    use HasFactory, SoftDeletes;
-
-    protected $fillable = [
-        'treatment_id',
-        'consultation_fee',
-        'lab_fees',
-        'medication_fees',
-        'other_fees',
-        'subtotal',
-        'discount_amount',
-        'total_amount',
-        'payment_method',
-        'paid_amount',
-        'change_amount',
-        'cashier_id',
-        'paid_at',
-        'receipt_number',
-        'notes',
-    ];
-
-    protected $casts = [
-        'consultation_fee' => 'decimal:2',
-        'lab_fees' => 'decimal:2',
-        'medication_fees' => 'decimal:2',
-        'other_fees' => 'decimal:2',
-        'subtotal' => 'decimal:2',
-        'discount_amount' => 'decimal:2',
-        'total_amount' => 'decimal:2',
-        'paid_amount' => 'decimal:2',
-        'change_amount' => 'decimal:2',
-        'paid_at' => 'datetime',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
-    ];
-
-    // ວິທີການຈ່າຍເງິນ
-    public static function getPaymentMethods(): array
-    {
-        return [
-            'Cash' => 'ເງິນສົດ',
-            'Transfer' => 'ໂອນເງິນ',
-            'Card' => 'ບັດເຄຣດິດ',
-            'Insurance' => 'ປະກັນໄພ',
-        ];
     }
 
-    public function getPaymentMethodLaoAttribute(): string
+    public function cancel(string $reason = null): bool
     {
-        return self::getPaymentMethods()[$this->payment_method] ?? $this->payment_method;
+        if (!$this->canCancel()) {
+            return false;
+        }
+        
+        return $this->update([
+            'dispensing_status' => 'Cancelled',
+        ]);
     }
 
-    // ======================== RELATIONSHIPS ========================
+    // ======================== BUSINESS LOGIC ========================
 
-    /**
-     * ການປິ່ນປົວທີ່ເກີ່ຍວຂ້ອງ
-     */
-    public function treatment(): BelongsTo
+    public function calculateTotalPrice(): float
     {
-        return $this->belongsTo(Treatment::class);
+        return $this->total_quantity * $this->unit_price;
     }
 
-    /**
-     * ພະນັກງານເກັບເງິນ
-     */
-    public function cashier(): BelongsTo
+    public function updatePricing(): bool
     {
-        return $this->belongsTo(User::class, 'cashier_id');
+        $this->unit_price = $this->medicine->unit_price;
+        $this->total_price = $this->calculateTotalPrice();
+        
+        return $this->save();
     }
 
-    // ======================== HELPER METHODS ========================
-
-    /**
-     * ສ້າງເລກທີ່ໃບເກັບເງິນອັດຕະໂນມັດ
-     */
-    public static function generateReceiptNumber(): string
+    public function getDaysSupply(): ?int
     {
-        $prefix = 'RC';
-        $date = now()->format('Ymd');
-        $lastPayment = static::whereDate('paid_at', now())
-            ->orderBy('id', 'desc')
-            ->first();
-
-        $sequence = $lastPayment ?
-            (int) substr($lastPayment->receipt_number, -4) + 1 : 1;
-
-        return $prefix . $date . str_pad($sequence, 4, '0', STR_PAD_LEFT);
+        // Try to extract days from duration string
+        if (!$this->duration) return null;
+        
+        // Simple extraction - could be improved with regex
+        if (str_contains($this->duration, 'ວັນ')) {
+            preg_match('/(\d+)\s*ວັນ/', $this->duration, $matches);
+            return isset($matches[1]) ? intval($matches[1]) : null;
+        }
+        
+        if (str_contains($this->duration, 'ອາທິດ')) {
+            preg_match('/(\d+)\s*ອາທິດ/', $this->duration, $matches);
+            return isset($matches[1]) ? intval($matches[1]) * 7 : null;
+        }
+        
+        if (str_contains($this->duration, 'ເດືອນ')) {
+            preg_match('/(\d+)\s*ເດືອນ/', $this->duration, $matches);
+            return isset($matches[1]) ? intval($matches[1]) * 30 : null;
+        }
+        
+        return null;
     }
 
-    /**
-     * ຄິດໄລຄາອັດຕະໂນມັດຈາກການປິ່ນປົວ
-     */
-    public static function calculateFromTreatment(Treatment $treatment): array
+    public function getDailyDose(): ?int
     {
-        $medicationFees = $treatment->medicationInstructions()
-            ->where('status', MedicationInstruction::STATUS_PRESCRIBED)
-            ->sum('total_price');
-
-        $labFees = 0; // ຈະຕ້ອງເພີ່ມລາຄາ Lab ຖ້າມີ
-
-        $consultationFee = 50000; // ຄ່າກວດມາດຕະຖານ (ສາມາດປັບແຕ່ງໄດ້)
-
-        $subtotal = $consultationFee + $labFees + $medicationFees;
-
-        return [
-            'consultation_fee' => $consultationFee,
-            'lab_fees' => $labFees,
-            'medication_fees' => $medicationFees,
-            'other_fees' => 0,
-            'subtotal' => $subtotal,
-            'discount_amount' => 0,
-            'total_amount' => $subtotal,
-        ];
-    }
-
-    /**
-     * ອັບເດດສະຖານະການປິ່ນປົວເມື່ອຈ່າຍເງິນແລ້ວ
-     */
-    protected static function booted()
-    {
-        static::created(function (Payment $payment) {
-            // ອັບເດດສະຖານະການປິ່ນປົວເປັນສຳເລັດ
-            if ($payment->treatment->canComplete()) {
-                $payment->treatment->update([
-                    'status' => Treatment::STATUS_COMPLETED
-                ]);
+        // Try to extract daily frequency from frequency string
+        if (!$this->frequency) return null;
+        
+        if (str_contains($this->frequency, 'ວັນລະ')) {
+            preg_match('/ວັນລະ\s*(\d+)\s*ເທື່ອ/', $this->frequency, $matches);
+            return isset($matches[1]) ? intval($matches[1]) : null;
+        }
+        
+        if (str_contains($this->frequency, 'ຊົ່ວໂມງ')) {
+            preg_match('/(\d+)\s*ຊົ່ວໂມງ/', $this->frequency, $matches);
+            if (isset($matches[1])) {
+                $hours = intval($matches[1]);
+                return $hours > 0 ? intval(24 / $hours) : null;
             }
-        });
+        }
+        
+        return null;
+    }
 
-        static::creating(function (Payment $payment) {
-            // ສ້າງເລກທີ່ໃບເກັບເງິນອັດຕະໂນມັດ
-            if (!$payment->receipt_number) {
-                $payment->receipt_number = self::generateReceiptNumber();
-            }
+    public function getUsageInstructions(): array
+    {
+        $instructions = [];
+        
+        if ($this->dosage) {
+            $instructions[] = 'ຂະໜາດ: ' . $this->dosage;
+        }
+        
+        if ($this->frequency) {
+            $instructions[] = 'ຄວາມຖີ່: ' . $this->frequency;
+        }
+        
+        if ($this->duration) {
+            $instructions[] = 'ໄລຍະເວລາ: ' . $this->duration;
+        }
+        
+        if ($this->administration_route) {
+            $instructions[] = 'ວິທີໃຊ້: ' . $this->getAdministrationRouteLabel();
+        }
+        
+        if ($this->special_instructions) {
+            $instructions[] = 'ຄຳແນະນຳພິເສດ: ' . $this->special_instructions;
+        }
+        
+        if ($this->warnings) {
+            $instructions[] = 'ຄຳເຕືອນ: ' . $this->warnings;
+        }
+        
+        return $instructions;
+    }
 
-            // ຄິດເງິນທອນ
-            if ($payment->paid_amount > $payment->total_amount) {
-                $payment->change_amount = $payment->paid_amount - $payment->total_amount;
-            }
-        });
+    public function getPatient(): Patient
+    {
+        return $this->treatment->getPatient();
+    }
+
+    public function getQueue(): Queue
+    {
+        return $this->treatment->getQueue();
+    }
+
+    // ======================== VALIDATION HELPERS ========================
+
+    public function validateQuantity(): array
+    {
+        $errors = [];
+        
+        // Check if medicine exists and is active
+        if (!$this->medicine || !$this->medicine->is_active) {
+            $errors[] = 'ຢາບໍ່ມີຢູ່ ຫຼື ບໍ່ສາມາດໃຊ້ໄດ້';
+        }
+        
+        // Check stock availability
+        if ($this->medicine && !$this->medicine->isInStock($this->total_quantity)) {
+            $errors[] = 'ສາງບໍ່ພໍ (ມີ ' . $this->medicine->getCurrentStockFormatted() . ')';
+        }
+        
+        // Check expiry
+        if ($this->medicine && $this->medicine->isExpired()) {
+            $errors[] = 'ຢາໝົດອາຍຸແລ້ວ';
+        }
+        
+        // Check if requires prescription
+        if ($this->medicine && $this->medicine->requires_prescription && !$this->prescribed_by) {
+            $errors[] = 'ຢານີ້ຕ້ອງມີໃບສັ່ງແພດ';
+        }
+        
+        return $errors;
+    }
+
+    public function isValidForDispensing(): bool
+    {
+        return empty($this->validateQuantity());
     }
 }

@@ -38,65 +38,7 @@ class QueueResource extends Resource
     {
         return $form
             ->schema([
-                // 🔥 MVP: ຟອร์ມສ້າງຄິວງ່າຍໆ
-                Forms\Components\Select::make('patient_id')
-                    ->label('ເລືອກຄົນໄຂ້')
-                    ->relationship('patient', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->full_name}")
-                    ->searchable(['first_name', 'last_name'])
-                    ->preload()
-                    ->required()
-                    ->createOptionForm([
-                        // Quick create patient form
-                        Forms\Components\Fieldset::make('')
-                            ->schema([
-                                Forms\Components\TextInput::make('first_name')
-                                    ->label('ຊື່')
-                                    ->required(),
-                                Forms\Components\TextInput::make('last_name')
-                                    ->label('ນາມສະກຸນ')
-                                    ->required(),
-                                Forms\Components\TextInput::make('phone_number')
-                                    ->label('ເບີໂທ')
-                                    ->tel(),
-                                Forms\Components\DatePicker::make('date_of_birth')
-                                    ->label('ວັນເດືອນປີເກີດ'),
-                                Forms\Components\Select::make('gender')
-                                    ->label('ເພດ')
-                                    ->options([
-                                        'M' => 'ຊາຍ',
-                                        'F' => 'ຍິງ',
-                                        'Other' => 'ອື່ນໆ'
-                                    ])
-                            ])->columns(2)
-                    ]),
-
-                Forms\Components\Textarea::make('initial_complaint')
-                    ->label('ອາການເບື້ອງຕົ້ນ / ສາເຫດທີ່ມາກວດ')
-                    ->rows(3)
-                    ->placeholder('ເຊັ່ນ: ປວດຫົວ, ໄຂ້, ກວດສຸຂະພາບປົກກະຕິ'),
-
-                Forms\Components\Select::make('priority_level')
-                    ->label('ຄວາມສຳຄັນ')
-                    ->options([
-                        'Normal' => 'ປົກກະຕິ',
-                        'Urgent' => 'ຮີບ (ອາການໜັກ)',
-                        'Emergency' => 'ສຸກເສີນ (ສຸກເສີນ)'
-                    ])
-                    ->default('Normal')
-                    ->required(),
-
-                Forms\Components\Select::make('doctor_id')
-                    ->label('ທ່ານໝໍທີ່ຕ້ອງການ')
-                    ->relationship('doctor', 'name')
-                    ->placeholder('ເລືອກທ່ານໝໍ (ຖ້າມີ)')
-                    ->searchable(),
-
-                // Hidden fields with auto-fill
-                Forms\Components\Hidden::make('queue_date')
-                    ->default(now()->toDateString()),
-                Forms\Components\Hidden::make('created_by')
-                    ->default(auth()->id()),
+              
             ]);
     }
 
@@ -104,80 +46,13 @@ class QueueResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('waiting_number')
-                    ->label('ເລກລໍຖ້າ')
-                    ->badge()
-                    ->color(fn($state) => $state > 0 ? 'warning' : 'success')
-                    ->formatStateUsing(fn($state) => $state > 0 ? "ລໍຖ້າທີ {$state}" : 'ສຳເລັດ')
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('queue_number')
-                    ->label('ເລກຄິວ')
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('patient.full_name')
-                    ->label('ຊື່ຄົນໄຂ້')
-                    ->searchable()
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('status_lao')
-                    ->label('ສະຖານະ')
-                    ->badge()
-                    ->color(fn($record) => $record->statusColor())
-                    ->sortable(),
-
-                Tables\Columns\TextColumn::make('estimated_waiting_time')
-                    ->label('ເວລາລໍຖ້າປະມານ')
-                    ->getStateUsing(fn($record) => $record->estimated_waiting_time),
-
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('ເວລາລົງທະບຽນ')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable(),
+             
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('queue_status')
-                    ->label('ຂັ້ນຕອນການກວດ')
-                    ->options([
-                        'Registered' => '1. ລົງທະບຽນແລ້ວ',
-                        'Vital_Checked' => '2. ກວດເບື້ອງຕົ້ນແລ້ວ',
-                        'With_Doctor' => '3. ຢູ່ກັບທ່ານໝໍ',
-                        'Lab_Testing' => '4. ກວດແລັບ',
-                        'Results_Ready' => '5. ຜົນກວດພ້ອມ',
-                        'Completed' => '6. ສຳເລັດ',
-                        'Cancelled' => 'ຍົກເລີກ'
-                    ]),
-
-                Tables\Filters\Filter::make('waiting_only')
-                    ->label('ກຳລັງລໍຖ້າເທົ່ານັ້ນ')
-                    ->query(fn($query) => $query->where('waiting_number', '>', 0)),
-
-                Tables\Filters\Filter::make('today')
-                    ->label('ວັນນີ້ເທົ່ານັ້ນ')
-                    ->query(fn($query) => $query->whereDate('queue_date', today()))
-                    ->default(),
-
-                Tables\Filters\SelectFilter::make('priority_level')
-                    ->label('ຄວາມສຳຄັນ')
-                    ->options([
-                        'Normal' => 'ປົກກະຕິ',
-                        'Urgent' => 'ຮີບ',
-                        'Emergency' => 'ສຸກເສີນ'
-                    ])
+               
             ])
             ->actions([
-                ActionGroup::make([
-                    VitalSignsAction::makeTableAction(),   // ຂັ້ນຕອນທີ 2
-                    AddServiceAction::makeTableAction(),   // ຂັ້ນຕອນທີ 3a
-                    DoctorConsultationAction::makeTableAction(),      // ຂັ້ນຕອນທີ 3
-                    LabTestingAction::make(),              // ຂັ້ນຕອນທີ 4a
-                    SkipLabAction::make(),                 // ຂັ້ນຕອນທີ 4b (skip)
-                    ResultsReadyAction::make(),            // ຂັ້ນຕອນທີ 5
-                    CompleteQueueAction::make(),           // ຂັ້ນຕອນທີ 6
-                    CancelQueueAction::make(),             // ຍົກເລີກ
-                    Tables\Actions\EditAction::make(),
-                    Tables\Actions\ViewAction::make(),
-                ])
+               
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

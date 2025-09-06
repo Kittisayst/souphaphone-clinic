@@ -35,49 +35,7 @@ class RoomResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('room_code')
-                    ->label('ລະຫັດຫ້ອງ')
-                    ->required()
-                    ->unique(ignoreRecord: true)
-                    ->maxLength(255),
-                Forms\Components\TextInput::make('room_name')
-                    ->label('ຊື່ຫ້ອງ')
-                    ->required()
-                    ->maxLength(255),
-                Forms\Components\Select::make('room_type')
-                    ->label('ປະເພດຫ້ອງ')
-                    ->options([
-                        'Consultation Room' => 'ຫ້ອງກວດ',
-                        'Procedure Room' => 'ຫ້ອງຫັດຖະກຳ',
-                        'Recovery Room' => 'ຫ້ອງພັກຟື້ນ',
-                        'Lab Room' => 'ຫ້ອງແລັບ',
-                        'Operating Room' => 'ຫ້ອງຜ່າຕັດ',
-                        'Waiting Area' => 'ບ່ອນລໍຖ້າ',
-                    ])
-                    ->required(),
-                Forms\Components\TextInput::make('capacity')
-                    ->label('ຄວາມສາມາດບັນຈຸ')
-                    ->numeric()
-                    ->required()
-                    ->default(1),
-                Forms\Components\Textarea::make('equipment_list')
-                    ->label('ລາຍການອຸປະກອນ')
-                    ->maxLength(65535)
-                    ->columnSpanFull(),
-                Forms\Components\Toggle::make('is_available')
-                    ->label('ວ່າງ')
-                    ->required()
-                    ->default(true),
-                Forms\Components\Select::make('current_user_id')
-                    ->relationship('currentUser', 'name')
-                    ->label('ຜູ້ໃຊ້ປັດຈຸບັນ')
-                    ->nullable()
-                    ->searchable()
-                    ->preload(),
-                Forms\Components\Textarea::make('notes')
-                    ->label('ໝາຍເຫດ')
-                    ->maxLength(65535)
-                    ->columnSpanFull(),
+                
             ]);
     }
 
@@ -85,33 +43,7 @@ class RoomResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('room_code')
-                    ->label('ລະຫັດຫ້ອງ')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('room_name')
-                    ->label('ຊື່ຫ້ອງ')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('room_type')
-                    ->label('ປະເພດຫ້ອງ')
-                    ->searchable()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('capacity')
-                    ->label('ຄວາມສາມາດບັນຈຸ')
-                    ->numeric()
-                    ->sortable(),
-                Tables\Columns\IconColumn::make('is_available')
-                    ->label('ວ່າງ')
-                    ->boolean(),
-                Tables\Columns\TextColumn::make('currentUser.name')
-                    ->label('ຜູ້ໃຊ້ປັດຈຸບັນ')
-                    ->default('ບໍ່ມີ')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('notes')
-                    ->label('ໝາຍເຫດ')
-                    ->limit(50)
-                    ->tooltip(fn(Room $record): string => $record->notes ?? ''),
+               
             ])
             ->filters([
                 //

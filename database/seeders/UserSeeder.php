@@ -140,6 +140,20 @@ class UserSeeder extends Seeder
             $this->command->info("🔧 Created technician: {$technician->name}");
         }
 
+        // 6. ສ້າງພະນັກງານຕ້ອນຮັບ
+        $receptionist = User::create([
+            'name' => 'ນາງດອກໄມ້ ດວງມະນີ',
+            'email' => 'receptionist@clinic.com',
+            'password' => Hash::make('receptionist123'),
+            'role' => 'receptionist',
+            'is_active' => true,
+            'phone' => '020 5555 0002',
+            'address' => 'ຄລີນິກສາຍຝົນ',
+            'license_number' => null,
+            'specializations' => null,
+        ]);
+        $receptionist->assignDefaultPermissions();
+
         // ສະແດງສະຖິຕິ
         $this->displayUserStatistics();
 

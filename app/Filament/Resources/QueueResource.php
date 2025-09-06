@@ -2,15 +2,24 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Actions\Queue\{
+    VitalSignsAction,
+    DoctorConsultationAction,
+    LabTestingAction,
+    SkipLabAction,
+    ResultsReadyAction,
+    CompleteQueueAction,
+    CancelQueueAction
+};
+use App\Filament\Actions\Queue\AddServiceAction;
 use App\Filament\Resources\QueueResource\Pages;
-use App\Filament\Resources\QueueResource\RelationManagers;
-use App\Models\Patient;
 use App\Models\Queue;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -29,54 +38,65 @@ class QueueResource extends Resource
     {
         return $form
             ->schema([
+                // 🔥 MVP: ຟອร์ມສ້າງຄິວງ່າຍໆ
                 Forms\Components\Select::make('patient_id')
+                    ->label('ເລືອກຄົນໄຂ້')
                     ->relationship('patient', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn(Patient $record) => "{$record->display_name}")
-                    ->searchable(['patient_code', 'first_name', 'last_name'])
+                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->full_name}")
+                    ->searchable(['first_name', 'last_name'])
                     ->preload()
                     ->required()
-                    ->label('ຄົນໄຂ້'),
-                Forms\Components\TextInput::make('queue_number')
-                    ->required()
-                    ->default(fn() => Queue::getNextQueueNumber())
-                    ->label('ລຳດັບຄິວ'),
-                Forms\Components\DatePicker::make('queue_date')
-                    ->required()
-                    ->default(now())
-                    ->label('ວັນທີ'),
+                    ->createOptionForm([
+                        // Quick create patient form
+                        Forms\Components\Fieldset::make('')
+                            ->schema([
+                                Forms\Components\TextInput::make('first_name')
+                                    ->label('ຊື່')
+                                    ->required(),
+                                Forms\Components\TextInput::make('last_name')
+                                    ->label('ນາມສະກຸນ')
+                                    ->required(),
+                                Forms\Components\TextInput::make('phone_number')
+                                    ->label('ເບີໂທ')
+                                    ->tel(),
+                                Forms\Components\DatePicker::make('date_of_birth')
+                                    ->label('ວັນເດືອນປີເກີດ'),
+                                Forms\Components\Select::make('gender')
+                                    ->label('ເພດ')
+                                    ->options([
+                                        'M' => 'ຊາຍ',
+                                        'F' => 'ຍິງ',
+                                        'Other' => 'ອື່ນໆ'
+                                    ])
+                            ])->columns(2)
+                    ]),
+
                 Forms\Components\Textarea::make('initial_complaint')
+                    ->label('ອາການເບື້ອງຕົ້ນ / ສາເຫດທີ່ມາກວດ')
                     ->rows(3)
-                    ->cols(20)
-                    ->nullable()
-                    ->label('ອາການເບື້ອງຕົ້ນ'),
-                Forms\Components\Select::make('doctor_id')
-                    ->relationship('assignedDoctor', 'name', fn(Builder $query) => $query->where('role', 'doctor'))
-                    ->preload()
-                    ->nullable()
-                    ->searchable()
-                    ->label('ທ່ານໝໍທີ່ຮັບຜິດຊອບ'),
-                Forms\Components\Select::make('queue_status')
-                    ->options([
-                        'Registered' => 'ລົງທະບຽນແລ້ວ',
-                        'Vital_Checked' => 'ກວດເບື້ອງຕົ້ນແລ້ວ',
-                        'With_Doctor' => 'ຢູ່ກັບທ່ານໝໍ',
-                        'Lab_Testing' => 'ກວດແລັບ',
-                        'Results_Ready' => 'ຜົນກວດພ້ອມ',
-                        'Completed' => 'ສຳເລັດ',
-                        'Cancelled' => 'ຍົກເລີກ',
-                    ])
-                    ->default('Registered')
-                    ->required()
-                    ->label('ສະຖານະຄິວ'),
+                    ->placeholder('ເຊັ່ນ: ປວດຫົວ, ໄຂ້, ກວດສຸຂະພາບປົກກະຕິ'),
+
                 Forms\Components\Select::make('priority_level')
+                    ->label('ຄວາມສຳຄັນ')
                     ->options([
-                        'Normal' => 'ທຳມະດາ',
-                        'Urgent' => 'ປານການກາງ',
-                        'Emergency' => 'ສູງ',
+                        'Normal' => 'ປົກກະຕິ',
+                        'Urgent' => 'ຮີບ (ອາການໜັກ)',
+                        'Emergency' => 'ສຸກເສີນ (ສຸກເສີນ)'
                     ])
                     ->default('Normal')
-                    ->required()
-                    ->label('ລະດັບຄວາມສຳຄັນ'),
+                    ->required(),
+
+                Forms\Components\Select::make('doctor_id')
+                    ->label('ທ່ານໝໍທີ່ຕ້ອງການ')
+                    ->relationship('doctor', 'name')
+                    ->placeholder('ເລືອກທ່ານໝໍ (ຖ້າມີ)')
+                    ->searchable(),
+
+                // Hidden fields with auto-fill
+                Forms\Components\Hidden::make('queue_date')
+                    ->default(now()->toDateString()),
+                Forms\Components\Hidden::make('created_by')
+                    ->default(auth()->id()),
             ]);
     }
 
@@ -84,102 +104,89 @@ class QueueResource extends Resource
     {
         return $table
             ->columns([
+                Tables\Columns\TextColumn::make('waiting_number')
+                    ->label('ເລກລໍຖ້າ')
+                    ->badge()
+                    ->color(fn($state) => $state > 0 ? 'warning' : 'success')
+                    ->formatStateUsing(fn($state) => $state > 0 ? "ລໍຖ້າທີ {$state}" : 'ສຳເລັດ')
+                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('queue_number')
-                    ->label('ລຳດັບຄິວ')
+                    ->label('ເລກຄິວ')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('patient.patient_code')
-                    ->label('ລະຫັດຄົນໄຂ້')
-                    ->searchable()
-                    ->sortable(),
+
                 Tables\Columns\TextColumn::make('patient.full_name')
                     ->label('ຊື່ຄົນໄຂ້')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('status_Lao')
-                    ->label('ສະຖານະຄິວ')
+
+                Tables\Columns\TextColumn::make('status_lao')
+                    ->label('ສະຖານະ')
                     ->badge()
-                    ->color(fn(Queue $record) => $record->statusColor())
+                    ->color(fn($record) => $record->statusColor())
                     ->sortable(),
-                Tables\Columns\TextColumn::make('queue_date')
-                    ->label('ວັນທີ')
-                    ->date('d/m/Y')
+
+                Tables\Columns\TextColumn::make('estimated_waiting_time')
+                    ->label('ເວລາລໍຖ້າປະມານ')
+                    ->getStateUsing(fn($record) => $record->estimated_waiting_time),
+
+                Tables\Columns\TextColumn::make('created_at')
+                    ->label('ເວລາລົງທະບຽນ')
+                    ->dateTime('d/m/Y H:i')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('initial_complaint')
-                    ->label('ອາການເບື້ອງຕົ້ນ')
-                    ->limit(50)
-                    ->tooltip(fn(Queue $record): string => $record->initial_complaint ?? ''),
             ])
             ->filters([
-                //
+                Tables\Filters\SelectFilter::make('queue_status')
+                    ->label('ຂັ້ນຕອນການກວດ')
+                    ->options([
+                        'Registered' => '1. ລົງທະບຽນແລ້ວ',
+                        'Vital_Checked' => '2. ກວດເບື້ອງຕົ້ນແລ້ວ',
+                        'With_Doctor' => '3. ຢູ່ກັບທ່ານໝໍ',
+                        'Lab_Testing' => '4. ກວດແລັບ',
+                        'Results_Ready' => '5. ຜົນກວດພ້ອມ',
+                        'Completed' => '6. ສຳເລັດ',
+                        'Cancelled' => 'ຍົກເລີກ'
+                    ]),
+
+                Tables\Filters\Filter::make('waiting_only')
+                    ->label('ກຳລັງລໍຖ້າເທົ່ານັ້ນ')
+                    ->query(fn($query) => $query->where('waiting_number', '>', 0)),
+
+                Tables\Filters\Filter::make('today')
+                    ->label('ວັນນີ້ເທົ່ານັ້ນ')
+                    ->query(fn($query) => $query->whereDate('queue_date', today()))
+                    ->default(),
+
+                Tables\Filters\SelectFilter::make('priority_level')
+                    ->label('ຄວາມສຳຄັນ')
+                    ->options([
+                        'Normal' => 'ປົກກະຕິ',
+                        'Urgent' => 'ຮີບ',
+                        'Emergency' => 'ສຸກເສີນ'
+                    ])
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make(),
-                //ກວດເບື້ອງຕົ້ນ
-                Tables\Actions\Action::make('vital_sign')
-                    ->label('ກວດເບື້ອງຕົ້ນ')
-                    ->icon('heroicon-o-heart')
-                    ->color('success')
-                    ->modal()
-                    ->modalWidth('md')
-                    ->modalSubmitActionLabel('ບັນທຶກ')
-                    ->form([
-                        Forms\Components\Fieldset::make('')
-                            ->schema([
-                                Forms\Components\TextInput::make('temperature')
-                                    ->label('ອຸນຫະພູມ')
-                                    ->numeric()
-                                    ->default(36.5)
-                                    ->suffix(' °C'),
-                                Forms\Components\TextInput::make('weight')
-                                    ->label('ນ້ຳໜັກ')
-                                    ->numeric()
-                                    ->default(0)
-                                    ->suffix(' kg'),
-                                Forms\Components\TextInput::make('height')
-                                    ->label('ລວງສູງ')
-                                    ->numeric()
-                                    ->default(0)
-                                    ->suffix(' cm'),
-                                Forms\Components\TextInput::make('heart_rate')
-                                    ->label('ອັດຕາການເຕັ້ນຂອງຫົວໃຈ')
-                                    ->numeric()
-                                    ->default(0)
-                                    ->suffix(' bpm'),
-                                Forms\Components\TextInput::make('blood_pressure_sys')
-                                    ->label('ຄວາມດັນເລືອດ (ສູງ)')
-                                    ->numeric()
-                                    ->default(0)
-                                    ->suffix(' mmHg'),
-                                Forms\Components\TextInput::make('blood_pressure_dia')
-                                    ->label('ຄວາມດັນເລືອດ (ຕ່ຳ)')
-                                    ->numeric()
-                                    ->default(0)
-                                    ->suffix(' mmHg'),
-                                Forms\Components\Textarea::make('notes')
-                                    ->label('ໝາຍເຫດ')
-                                    ->rows(3)
-                                    ->cols(20)
-                                    ->columnSpanFull(),
-                            ])->columns(2)
-                    ])
-                    ->action(function (array $data, Queue $record) {
-                        $record->vitalSign()->create([
-                            ...$data
-                        ]);
-                        $record->update(['queue_status' => 'Vital_Checked', 'vital_checked_at' => now()]);
-                        \Filament\Notifications\Notification::make()
-                            ->title('ບັນທຶກການກວດເບື້ອງຕົ້ນສຳເລັດ')
-                            ->success()
-                            ->send();
-                    })
-                    ->visible(fn(Queue $record) => $record->isRegistered()),
+                ActionGroup::make([
+                    VitalSignsAction::makeTableAction(),   // ຂັ້ນຕອນທີ 2
+                    AddServiceAction::makeTableAction(),   // ຂັ້ນຕອນທີ 3a
+                    DoctorConsultationAction::makeTableAction(),      // ຂັ້ນຕອນທີ 3
+                    LabTestingAction::make(),              // ຂັ້ນຕອນທີ 4a
+                    SkipLabAction::make(),                 // ຂັ້ນຕອນທີ 4b (skip)
+                    ResultsReadyAction::make(),            // ຂັ້ນຕອນທີ 5
+                    CompleteQueueAction::make(),           // ຂັ້ນຕອນທີ 6
+                    CancelQueueAction::make(),             // ຍົກເລີກ
+                    Tables\Actions\EditAction::make(),
+                    Tables\Actions\ViewAction::make(),
+                ])
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
                 ]),
             ])
+            ->defaultSort('waiting_number', 'asc') // ເລກລໍຖ້າກ່ອນ
+            ->poll('30s') // รีเฟรชทุก 30 วินาที
+            // ->recordUrl(null)
             ->defaultPaginationPageOption(25);
     }
 
@@ -187,82 +194,73 @@ class QueueResource extends Resource
     {
         return $infolist
             ->schema([
-                \Filament\Infolists\Components\Fieldset::make('ຂໍ້ມູນຄິວ')
+                \Filament\Infolists\Components\Section::make('ຂໍ້ມູນຄິວ')
                     ->schema([
-                        \Filament\Infolists\Components\Grid::make(3)
-                            ->schema([
-                                \Filament\Infolists\Components\TextEntry::make('formatted_queue_number')
-                                    ->label('ລຳດັບຄິວ')
-                                    ->size('100px')
-                                    ->weight('bold')
-                                    ->color('primary'),
-                                \Filament\Infolists\Components\TextEntry::make('queue_date')
-                                    ->label('ວັນທີຄິວ')
-                                    ->date('d/m/Y'),
-                                \Filament\Infolists\Components\TextEntry::make('status_Lao')
-                                    ->label('ສະຖານະຄິວ')
-                                    ->badge()
-                                    ->color(fn(Queue $record) => $record->statusColor()),
-                                \Filament\Infolists\Components\TextEntry::make('initial_complaint')
-                                    ->label('ອາການເບື້ອງຕົ້ນ')
-                                    ->columnSpanFull(),
-                            ]),
-                    ]),
-                \Filament\Infolists\Components\Fieldset::make('ການກວດເບື້ອງຕົ້ນ')
-                    ->schema([
-                        \Filament\Infolists\Components\Grid::make(3)
-                            ->schema([
-                                \Filament\Infolists\Components\TextEntry::make('vitalSign.temperature')
-                                    ->label('ອຸນຫະພູມ')
-                                    ->suffix(' °C'),
-                                \Filament\Infolists\Components\TextEntry::make('vitalSign.weight')
-                                    ->label('ນ້ຳໜັກ')
-                                    ->suffix(' kg'),
-                                \Filament\Infolists\Components\TextEntry::make('vitalSign.height')
-                                    ->label('ລວງສູງ')
-                                    ->suffix(' cm'),
-                                \Filament\Infolists\Components\TextEntry::make('vitalSign.heart_rate')
-                                    ->label('ອັດຕາການເຕັ້ນຂອງຫົວໃຈ')
-                                    ->suffix(' bpm'),
-                                \Filament\Infolists\Components\TextEntry::make('vitalSign.formatted_blood_pressure')
-                                    ->label('ຄວາມດັນເລືອດ')
-                                    ->default(0)
-                                    ->suffix(' mmHg'),
-                                \Filament\Infolists\Components\TextEntry::make('vitalSign.blood_pressure_status')
-                                    ->label('ສະຖານະຄວາມດັນ')
-                                    ->default(0)
-                                    ->suffix(' mmHg'),
+                        \Filament\Infolists\Components\TextEntry::make('queue_number')
+                            ->label('ເລກຄິວ')
+                            ->formatStateUsing(fn($state) => str_pad($state, 3, '0', STR_PAD_LEFT)),
+                        \Filament\Infolists\Components\TextEntry::make('waiting_number')
+                            ->label('ເລກລໍຖ້າ')
+                            ->formatStateUsing(fn($state) => $state > 0 ? "ລໍຖ້າທີ {$state}" : 'ສຳເລັດແລ້ວ'),
+                        \Filament\Infolists\Components\TextEntry::make('queue_status')
+                            ->label('ສະຖານະ')
+                            ->badge(),
+                        \Filament\Infolists\Components\TextEntry::make('estimated_waiting_time')
+                            ->label('ເວລາລໍຖ້າປະມານ'),
+                    ])->columns(4),
 
-                            ])
-                            ->visible(fn(Queue $record) => $record->vitalSign()->exists()),
-                    ]),
-                \Filament\Infolists\Components\Fieldset::make('ລົງທະບຽນກວດ')
+                \Filament\Infolists\Components\Section::make('ຂໍ້ມູນຄົນໄຂ້')
+                    ->schema([
+                        \Filament\Infolists\Components\TextEntry::make('patient.full_name')
+                            ->label('ຊື່ຄົນໄຂ້'),
+                        \Filament\Infolists\Components\TextEntry::make('patient.phone_number')
+                            ->label('ເບີໂທ'),
+                        \Filament\Infolists\Components\TextEntry::make('initial_complaint')
+                            ->label('ອາການເບື້ອງຕົ້ນ'),
+                        \Filament\Infolists\Components\TextEntry::make('priority_level')
+                            ->label('ຄວາມສຳຄັນ')
+                            ->badge(),
+                    ])->columns(2),
+
+                // แสดง Vital Signs ถ้ามี
+                \Filament\Infolists\Components\Section::make('ການກວດເບື້ອງຕົ້ນ')
+                    ->schema([
+                        \Filament\Infolists\Components\TextEntry::make('vitalSign.temperature')
+                            ->label('ອຸນຫະພູມ')
+                            ->suffix(' °C'),
+                        \Filament\Infolists\Components\TextEntry::make('vitalSign.weight')
+                            ->label('ນ້ຳໜັກ')
+                            ->suffix(' kg'),
+                        \Filament\Infolists\Components\TextEntry::make('vitalSign.height')
+                            ->label('ຄວາມສູງ')
+                            ->suffix(' cm'),
+                        \Filament\Infolists\Components\TextEntry::make('vitalSign.heart_rate')
+                            ->label('ການເຕັ້ນຫົວໃຈ')
+                            ->suffix(' bpm'),
+                        \Filament\Infolists\Components\TextEntry::make('vitalSign.blood_pressure_sys')
+                            ->label('ຄວາມດັນເລືອດ (ສູງ)')
+                            ->suffix(' mmHg'),
+                        \Filament\Infolists\Components\TextEntry::make('vitalSign.blood_pressure_dia')
+                            ->label('ຄວາມດັນເລືອດ (ຕ່ຳ)')
+                            ->suffix(' mmHg'),
+                    ])->columns(3)
+                    ->visible(fn($record) => $record->vitalSign()->exists()),
+
+                // แสดง Queue Services
+                \Filament\Infolists\Components\Section::make('ບໍລິການທີ່ຮັບ')
                     ->schema([
                         \Filament\Infolists\Components\RepeatableEntry::make('queueServices')
-                            ->label('ລາຍການບໍລິການ')
                             ->schema([
                                 \Filament\Infolists\Components\TextEntry::make('service.service_name')
                                     ->label('ຊື່ບໍລິການ'),
                                 \Filament\Infolists\Components\TextEntry::make('service_status')
-                                    ->label('ສະຖານະບໍລິການ')
-                                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                                        'Added' => 'ເພີ່ມແລ້ວ',
-                                        'Scheduled' => 'ນັດເວລາແລ້ວ',
-                                        'In_Progress' => 'ກຳລັງເຮັດ',
-                                        'Completed' => 'ສຳເລັດ',
-                                        'Cancelled' => 'ຍົກເລີກ',
-                                        default => $state,
-                                    })
+                                    ->label('ສະຖານະ')
                                     ->badge(),
                                 \Filament\Infolists\Components\TextEntry::make('assignedTo.name')
-                                    ->label('ມອບໝາຍໃຫ້'),
-                                \Filament\Infolists\Components\TextEntry::make('scheduled_at')
-                                    ->label('ກຳນົດເວລາ')
-                                    ->dateTime('d/m/Y H:i'),
-                            ])
-                            ->columns(4)
-                            ->columnSpanFull(),
-                    ])->visible(fn(Queue $record) => $record->queueServices()->exists()),
+                                    ->label('ຜູ້ຮັບຜິດຊອບ')
+                                    ->default('-'),
+                            ])->columns(3)
+                    ])->visible(fn($record) => $record->queueServices()->exists()),
             ]);
     }
 

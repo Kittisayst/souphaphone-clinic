@@ -14,7 +14,7 @@ class Patient extends Model
     protected $fillable = [
         'patient_code',
         'first_name',
-        'last_name', 
+        'last_name',
         'date_of_birth',
         'gender',
         'phone_number',
@@ -73,8 +73,14 @@ class Patient extends Model
     // ຊື່ເຕັມ
     public function getFullNameAttribute()
     {
-        $prefix = $this->gender === 'male' ? 'ທ້າວ' : 'ນາງ';
-        return "{$prefix} {$this->first_name} {$this->last_name}";;
+        $prefix = match ($this->gender) {
+            'M' => 'ທ້າວ',
+            'F' => 'ນາງ',
+            'Other' => '',
+            default => ''
+        };
+
+        return trim("{$prefix} {$this->first_name} {$this->last_name}");
     }
 
     // ອາຍຸ
@@ -87,5 +93,31 @@ class Patient extends Model
     public function getDisplayNameAttribute()
     {
         return "{$this->patient_code} - {$this->full_name}";
+    }
+
+    // ============= Scopes ===================
+
+    // ຄົນໄຂ້ຕາມເພດ
+    public function scopeByGender($query, $gender)
+    {
+        return $query->where('gender', $gender);
+    }
+
+    // ຄົນໄຂ້ທີ່ມີອາຍຸຫຼາຍກວ່າ
+    public function scopeAgeGreaterThan($query, $age)
+    {
+        return $query->whereYear('date_of_birth', '<=', now()->subYears($age)->year);
+    }
+
+    // ຄົນໄຂ້ທີ່ມີອາຍຸໜ້ອຍກວ່າ
+    public function scopeAgeLessThan($query, $age)
+    {
+        return $query->whereYear('date_of_birth', '>=', now()->subYears($age)->year);
+    }
+
+    // ຄົນໄຂ້ທີ່ລົງທະບຽນໃນມື້ນີ້
+    public function scopeRegisteredToday($query)
+    {
+        return $query->whereDate('created_at', today());
     }
 }

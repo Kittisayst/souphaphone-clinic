@@ -13,18 +13,30 @@ class Treatment extends Model
     protected $fillable = [
         'queue_service_id',
         'room_id',
-        'performed_by_id',
+        'performed_by',
         'treatment_started_at',
         'treatment_ended_at',
+        'medical_history_notes',
+        'current_symptoms',
+        'physical_examination',
         'examination_notes',
-        'findings',
-        'recommendations',
-        'status'
+        'initial_assessment',
+        'diagnosis',
+        'treatment_plan',
+        'follow_up_required',
+        'follow_up_date',
+        'follow_up_notes',
+        'status',
+        'updated_by'
+
     ];
 
     protected $casts = [
         'treatment_started_at' => 'datetime',
         'treatment_ended_at' => 'datetime',
+        'follow_up_required' => 'boolean',
+        'follow_up_date' => 'date',
+        'updated_by' => 'integer'
     ];
 
     // =================== RELATIONSHIPS ===================
@@ -69,7 +81,7 @@ class Treatment extends Model
     // ຜູ້ເຮັດການປິ່ນປົວ
     public function performedBy()
     {
-        return $this->belongsTo(User::class, 'performed_by_id');
+        return $this->belongsTo(User::class, 'performed_by');
     }
 
     // =================== SCOPES ===================

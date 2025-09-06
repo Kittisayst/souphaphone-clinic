@@ -3,6 +3,8 @@
 namespace App\Providers\Filament;
 
 
+use App\Filament\Widgets\StatsOverview;
+use App\Filament\Widgets\TodayQueueWidget;
 use Filament\FontProviders\GoogleFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -30,13 +32,14 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('admin')
             ->brandLogo(asset('images/logo.png'))
-             ->brandLogoHeight('3rem')
+            ->brandLogoHeight('3rem')
             ->favicon(asset('images/logo.png'))
             ->brandName('ລະບົບບໍລິຫານຄຣີນິກສຸພາພອນ')
             ->login()
             ->colors([
                 'primary' => Color::Lime,
             ])
+            // ->maxContentWidth('full')
             ->font('Noto Sans Lao', provider: GoogleFontProvider::class)
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
@@ -45,19 +48,20 @@ class AdminPanelProvider extends PanelProvider
             ])
             // ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\\Filament\\Widgets')
             ->widgets([
+                StatsOverview::class,
                 // Widgets\AccountWidget::class,
                 // Widgets\FilamentInfoWidget::class,
                 // QueueStatsWidget::class,
-                // TodayQueueWidget::class,
+                TodayQueueWidget::class,
             ])
-              ->navigationGroups([
-                  NavigationGroup::make('ການບໍລິການ'),
-                  NavigationGroup::make('ການຮັກສາ'),
-                  NavigationGroup::make('ການເງິນ'),
-                  NavigationGroup::make('ລາຍງານ'),
-                  NavigationGroup::make('ຈັດການຂໍ້ມູນພື້ນຖານ'),
-                 NavigationGroup::make('ການຕັ້ງຄ່າ'),
-              ])
+            ->navigationGroups([
+                NavigationGroup::make('ການບໍລິການ'),
+                NavigationGroup::make('ການຮັກສາ'),
+                NavigationGroup::make('ການເງິນ'),
+                NavigationGroup::make('ລາຍງານ'),
+                NavigationGroup::make('ຈັດການຂໍ້ມູນພື້ນຖານ'),
+                NavigationGroup::make('ການຕັ້ງຄ່າ'),
+            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

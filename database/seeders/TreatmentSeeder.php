@@ -1,154 +1,198 @@
 <?php
+// database/seeders/TreatmentSeeder.php
 
 namespace Database\Seeders;
 
-use App\Models\QueueService;
-use App\Models\Room;
-use App\Models\Treatment;
-use App\Models\User;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use App\Models\{Queue, QueueService, Treatment, Room, User, Service};
 
 class TreatmentSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->command->info('🔄 Creating treatments demo data...');
+        $this->command->info('ກຳລັງສ້າງຂໍ້ມູນການປິ່ນປົວສຳລັບຄິວທີ 1...');
 
-        // ດຶງຂໍ້ມູນທີ່ຈຳເປັນ
-        $queueServices = QueueService::whereIn('service_status', ['In_Progress', 'Completed'])
-                                    ->with(['queue', 'service'])
-                                    ->limit(4)
-                                    ->get();
-        $rooms = Room::where('room_type', 'Consultation')->limit(3)->get();
-        $doctors = User::where('role', 'doctor')->limit(2)->get();
-
-        if ($queueServices->isEmpty() || $rooms->isEmpty() || $doctors->isEmpty()) {
-            $this->command->error('❌ ຕ້ອງມີຂໍ້ມູນ QueueService, Room ແລະ Doctor ກ່ອນ!');
+        // ຫາຄິວທີ 1 (ຄິວທີ່ສຳເລັດແລ້ວ)
+        $queue = Queue::where('queue_number', 1)->first();
+        
+        if (!$queue) {
+            $this->command->error('ບໍ່ພົບຄິວທີ 1 - ກະລຸນາ run QueueSeeder ກ່ອນ');
             return;
         }
 
-        // ການປິ່ນປົວທົດລອງ 4 ແບບ
-        $treatmentData = [
-            // ການປິ່ນປົວທີ 1: ກວດທົ່ວໄປ (ສຳເລັດ)
-            [
-                'examination_notes' => 'ຄົນໄຂ້ມາດ້ວຍອາການປວດຫົວ ແລະ ໄຂ້ມາ 2 ວັນ. ກວດພົບອຸນຫະພູມ 38.2°C, ຄວາມດັນເລືອດປົກກະຕິ. ກວດຄໍບໍ່ມີການອັກເສບ, ຫູ-ດັງປົກກະຕິ.',
-                'findings' => 'ມີໄຂ້ເລັກນ້ອຍ, ບໍ່ມີອາການຮ້າຍແຮງ, ຄໍແດງເລັກນ້ອຍ',
-                'recommendations' => 'ພັກຜ່ອນຢ່າງພຽງພໍ, ດື່ມນ້ຳຫຼາຍໆ, ກິນຢາແກ້ໄຂ້ຕາມເວລາ',
-                'status' => 'Completed'
-            ],
+        // ຫາຂໍ້ມູນທີ່ຈຳເປັນ
+        $doctor = User::where('role', 'doctor')->first();
+        $nurse = User::where('role', 'nurse')->first();
+        $consultationRoom = Room::where('room_type', 'Consultation')->first();
+        $labRoom = Room::where('room_type', 'Laboratory')->first();
 
-            // ການປິ່ນປົວທີ 2: ກວດເລືອດ (ສຳເລັດ)
-            [
-                'examination_notes' => 'ເຈາະເລືອດເພື່ອກວດ CBC ແລະ ນ້ຳຕານ. ຄົນໄຂ້ໃຫ້ການຮ່ວມມືດີ, ບໍ່ມີບັນຫາໃນການເຈາະເລືອດ.',
-                'findings' => 'ເຈາະເລືອດສຳເລັດ, ຕົວຢ່າງເລືອດມີຄຸນນະພາບດີ',
-                'recommendations' => 'ລໍຖ້າຜົນກວດ, ຈະແຈ້ງໃຫ້ຊາບພາຍໃນ 2 ຊົ່ວໂມງ',
-                'status' => 'Completed'
-            ],
+        // ຫາ QueueServices ຂອງຄິວທີ 1
+        $queueServices = $queue->queueServices()->get();
 
-            // ການປິ່ນປົວທີ 3: X-Ray (ກຳລັງເຮັດ)
-            [
-                'examination_notes' => 'ຖ່າຍ X-Ray ໜ້າເອິກເພື່ອກວດສອບປອດ ແລະ ຫົວໃຈ. ຄົນໄຂ້ມີອາການໄອແລະເຈັບໜ້າເອິກ.',
-                'findings' => 'ກຳລັງຖ່າຍຮູບ X-Ray, ຄາດວ່າຈະສຳເລັດໃນອີກ 10 ນາທີ',
-                'recommendations' => 'ລໍຖ້າຜົນ X-Ray ເພື່ອປະເມີນສະພາບປອດ',
-                'status' => 'In_Progress'
-            ],
+        if ($queueServices->isEmpty()) {
+            $this->command->error('ບໍ່ພົບ QueueService ສຳລັບຄິວທີ 1');
+            return;
+        }
 
-            // ການປິ່ນປົວທີ 4: Ultrasound (ນັດເວລາແລ້ວ)
-            [
-                'examination_notes' => 'ນັດເວລາກວດ Ultrasound ທ້ອງເພື່ອກວດສອບອະໄວຍະວະພາຍໃນ. ຄົນໄຂ້ມີອາການປວດທ້ອງດ້ານຂວາ.',
-                'findings' => 'ຍັງບໍ່ໄດ້ເລີ່ມກວດ, ລໍຖ້າເວລານັດໝາຍ',
-                'recommendations' => 'ກຽມພ້ອມສຳລັບການກວດ Ultrasound, ດື່ມນ້ຳ 500ml ກ່ອນກວດ',
-                'status' => 'In_Progress'
-            ]
-        ];
+        $this->command->info("ພົບ {$queueServices->count()} QueueService(s) ສຳລັບຄິວທີ 1");
+
+        // ==================================
+        // ສ້າງ Treatment ສຳລັບແຕ່ລະ QueueService
+        // ==================================
 
         foreach ($queueServices as $index => $queueService) {
-            if (!isset($treatmentData[$index])) break;
-
-            $data = $treatmentData[$index];
-            
-            // ກວດສອບວ່າມີ Treatment ແລ້ວບໍ່
-            if (Treatment::where('queue_service_id', $queueService->id)->exists()) {
-                $this->command->warn("⚠️ QueueService #{$queueService->id} ມີ Treatment ແລ້ວ - ຂ້າມໄປ");
-                continue;
-            }
-
-            // ເລືອກຫ້ອງຕາມປະເພດບໍລິການ
-            $room = $this->selectAppropriateRoom($queueService->service->service_category, $rooms);
-            
-            // ເລືອກທ່ານໝໍ
-            $doctor = $queueService->assigned_to_id ? 
-                     User::find($queueService->assigned_to_id) : 
-                     $doctors->random();
-
-            // ກຳນົດເວລາຕາມສະຖານະ
-            $treatmentStart = $queueService->started_at ?? now()->subMinutes(30);
-            $treatmentEnd = $data['status'] === 'Completed' ? 
-                           ($queueService->completed_at ?? now()->subMinutes(5)) : 
-                           null;
-
-            Treatment::create([
-                'queue_service_id' => $queueService->id,
-                'room_id' => $room->id,
-                'performed_by' => $doctor->id,
-                'treatment_started_at' => $treatmentStart,
-                'treatment_ended_at' => $treatmentEnd,
-                'examination_notes' => $data['examination_notes'],
-                'findings' => $data['findings'],
-                'recommendations' => $data['recommendations'],
-                'status' => $data['status'],
-            ]);
-
+            $serviceCategory = $queueService->service->service_category;
             $serviceName = $queueService->service->service_name;
-            $queueNumber = $queueService->queue->queue_number;
             
-            $this->command->info("✅ Queue #{$queueNumber}: {$serviceName} - {$data['status']}");
+            $this->command->info("ກຳລັງສ້າງ Treatment ສຳລັບ: {$serviceName} ({$serviceCategory})");
+
+            if ($serviceCategory === 'Consultation') {
+                // ການປິ່ນປົວສຳລັບການປຶກສາ
+                $this->createConsultationTreatment($queueService, $doctor, $consultationRoom);
+                
+            } elseif ($serviceCategory === 'Blood_Test') {
+                // ການປິ່ນປົວສຳລັບການກວດເລືອດ
+                $this->createBloodTestTreatment($queueService, $nurse, $labRoom);
+                
+            } elseif ($serviceCategory === 'X_Ray') {
+                // ການປິ່ນປົວສຳລັບ X-Ray
+                $this->createXRayTreatment($queueService, $nurse, $labRoom);
+                
+            } else {
+                // ການປິ່ນປົວທົ່ວໄປ
+                $this->createGeneralTreatment($queueService, $doctor, $consultationRoom);
+            }
         }
 
-        // ສະຖິຕິການປິ່ນປົວ
-        $this->displayTreatmentStatistics();
-
-        $this->command->info('✅ Created treatments for queue services');
+        $this->command->info('');
+        $this->command->info('✅ ສ້າງຂໍ້ມູນ Treatment ສຳເລັດ!');
+        
+        // ສະແດງສະຫຼຸບ
+        $treatments = Treatment::whereIn('queue_service_id', $queueServices->pluck('id'))->get();
+        
+        $this->command->table(
+            ['ບໍລິການ', 'ຫ້ອງ', 'ຜູ້ເຮັດ', 'ສະຖານະ', 'ການວິນິໄຈ'],
+            $treatments->map(function ($treatment) {
+                return [
+                    $treatment->queueService->service->service_name,
+                    $treatment->room->room_name ?? '-',
+                    $treatment->performedBy->name,
+                    $treatment->status,
+                    $treatment->diagnosis ?? '-'
+                ];
+            })->toArray()
+        );
     }
 
     /**
-     * ເລືອກຫ້ອງທີ່ເໝາະສົມຕາມປະເພດບໍລິການ
+     * ສ້າງ Treatment ສຳລັບການປຶກສາ
      */
-    private function selectAppropriateRoom($serviceCategory, $rooms)
+    private function createConsultationTreatment($queueService, $doctor, $room)
     {
-        // ຖ້າເປັນການກວດທົ່ວໄປ ໃຊ້ຫ້ອງ Consultation
-        if ($serviceCategory === 'Consultation') {
-            return $rooms->where('room_type', 'Consultation')->first() ?? $rooms->first();
-        }
-        
-        // ບໍລິການອື່ນໆ ໃຊ້ຫ້ອງທົ່ວໄປ
-        return $rooms->first();
+        Treatment::create([
+            'queue_service_id' => $queueService->id,
+            'room_id' => $room->id,
+            'performed_by' => $doctor->id,
+            'treatment_started_at' => now()->subMinutes(90), // 1.5 ຊົ່ວໂມງກ່ອນ
+            'treatment_ended_at' => now()->subMinutes(30),   // 30 ນາທີກ່ອນ
+            
+            // ຂໍ້ມູນການກວດ
+            'medical_history_notes' => 'ເຄີຍມີໄຂ້ຫວັດເມື່ອອາທິດທີ່ແລ້ວ, ບໍ່ເຄີຍແພ້ຢາ, ບໍ່ເຄີຍຜ່າຕັດ, ຄອບຄົວບໍ່ມີປະຫວັດເປັນໂລກຮ້າຍແຮງ',
+            'current_symptoms' => 'ປວດຫົວດ້ານຫຼັງ, ໄຂ້ເລັກນ້ອຍ, ເມື່ອຍລ້າ, ເບື່ອອາຫານ, ນອນບໍ່ຫຼັບ',
+            'physical_examination' => 'ກວດຫູ: ປົກກະຕິ, ຄໍ: ບໍ່ບວມ, ດັງ: ຟັງແລ້ວປົກກະຕິ, ໃຈ: ປົກກະຕິ, ທ້ອງ: ອ່ອນນຸ່ມ ບໍ່ເຈັບ',
+            'examination_notes' => 'ຄົນໄຂ້ມີອາການໄຂ້ຫວັດທົ່ວໄປ, ບໍ່ຮ້າຍແຮງ, ບໍ່ມີອາການແຊກຊ້ອນ, ການກວດທາງກາຍະພາບບໍ່ພົບຄວາມຜິດປົກກະຕິ',
+            
+            // ການວິເຄາະແລະການວິນິໄຈ
+            'initial_assessment' => 'ອາການຄ້າຍໄຂ້ຫວັດທົ່ວໄປ, ບໍ່ມີອາການແນວຊັບຊ້ອນ, ສາມາດປິ່ນປົວທີ່ບ້ານໄດ້',
+            'findings' => 'ອຸນຫະພູມຂຶ້ນເລັກນ້ອຍ 37.2°C, ບໍ່ມີອາການອັກເສບຮ້າຍແຮງ, ການກວດທາງກາຍະພາບປົກກະຕິ',
+            'diagnosis' => 'ໄຂ້ຫວັດທົ່ວໄປ (Common Cold) - Upper Respiratory Tract Infection',
+            
+            // ການປິ່ນປົວແລະຄຳແນະນຳ
+            'treatment_plan' => 'ປິ່ນປົວດ້ວຍຢາຕາມອາການ: ຢາລົດໄຂ້ (Paracetamol), ຢາຂະຫຍາຍເສັ້ນເລືອດດັງ, ພັກຜ່ອນເພີ່ມ',
+            'recommendations' => 'ພັກຜ່ອນເຕັມທີ່ 2-3 ວັນ, ດື່ມນ້ຳສະອາດຫຼາຍໆ, ກິນອາຫານງ່າຍໆ, ຫຼີກເວັ້ນອາຫານເຢັນ',
+            'doctor_recommendations' => 'ຖ້າໄຂ້ບໍ່ຫາຍໃນ 3 ວັນ ຫຼືມີອາການໜັກຂຶ້ນ ໃຫ້ກັບມາກວດທັນທີ, ຖ້າມີອາການເຮືອກຫອບ ໃຫ້ມາໂຮງໝໍທັນທີ',
+            
+            // ການຕິດຕາມ
+            'follow_up_required' => true,
+            'follow_up_date' => now()->addDays(3)->toDateString(),
+            'follow_up_notes' => 'ກວດເບິ່ງອາການຖ້າບໍ່ດີຂຶ້ນ, ປະເມີນຄວາມຈຳເປັນໃນການປິ່ນປົວເພີ່ມເຕີມ',
+            
+            'status' => 'Completed',
+            'updated_by' => $doctor->id
+        ]);
     }
 
     /**
-     * ສະແດງສະຖິຕິການປິ່ນປົວ
+     * ສ້າງ Treatment ສຳລັບການກວດເລືອດ
      */
-    private function displayTreatmentStatistics(): void
+    private function createBloodTestTreatment($queueService, $nurse, $room)
     {
-        $totalTreatments = Treatment::count();
-        $completedTreatments = Treatment::where('status', 'Completed')->count();
-        $inProgressTreatments = Treatment::where('status', 'In_Progress')->count();
-        
-        // ເວລາປົກກະຕິໃນການປິ່ນປົວ
-        $avgDuration = Treatment::whereNotNull('treatment_ended_at')
-            ->selectRaw('AVG(TIMESTAMPDIFF(MINUTE, treatment_started_at, treatment_ended_at)) as avg_duration')
-            ->first()
-            ->avg_duration ?? 0;
+        Treatment::create([
+            'queue_service_id' => $queueService->id,
+            'room_id' => $room->id,
+            'performed_by' => $nurse->id,
+            'treatment_started_at' => now()->subMinutes(45),
+            'treatment_ended_at' => now()->subMinutes(15),
+            
+            'medical_history_notes' => 'ທ່ານໝໍສັ່ງກວດເລືອດເພື່ອຢືນຢັນວ່າບໍ່ມີການຕິດເຊື້ອແບັກທີເຣຍ',
+            'current_symptoms' => 'ຕາມທີ່ທ່ານໝໍສັ່ງກວດ',
+            'physical_examination' => 'ເຈາະເລືອດຈາກເສັ້ນເລືອດດຳແຂນຊ້າຍ, ໄດ້ເລືອດ 5ml',
+            'examination_notes' => 'ເຈາະເລືອດສຳເລັດ, ບໍ່ມີອາການແຊກຊ້ອນ, ຄົນໄຂ້ທົນໄດ້ດີ',
+            
+            // ຜົນການກວດ
+            'findings' => 'ຜົນກວດເລືອດ: WBC ປົກກະຕິ (6,500/μl), ບໍ່ມີການອັກເສບ, ຄ່າອື່ນໆ ຢູ່ໃນເກນປົກກະຕິ',
+            'diagnosis' => 'ຜົນກວດເລືອດປົກກະຕິ - ບໍ່ພົບການຕິດເຊື້ອແບັກທີເຣຍ',
+            'recommendations' => 'ຜົນກວດສະໜັບສະໜູນການວິນິໄຈວ່າເປັນໄຂ້ຫວັດທົ່ວໄປ, ຕິດຕາມອາການຕໍ່ໄປ',
+            
+            'status' => 'Completed',
+            'updated_by' => $nurse->id
+        ]);
+    }
 
-        // ທ່ານໝໍທີ່ເຮັດວຽກ
-        $activeDoctors = Treatment::distinct('performed_by')->count('performed_by');
+    /**
+     * ສ້າງ Treatment ສຳລັບ X-Ray
+     */
+    private function createXRayTreatment($queueService, $nurse, $room)
+    {
+        Treatment::create([
+            'queue_service_id' => $queueService->id,
+            'room_id' => $room->id,
+            'performed_by' => $nurse->id,
+            'treatment_started_at' => now()->subMinutes(60),
+            'treatment_ended_at' => now()->subMinutes(40),
+            
+            'medical_history_notes' => 'ທ່ານໝໍສັ່ງຖ່າຍ X-Ray ເພື່ອກວດເບິ່ງປອດ',
+            'physical_examination' => 'ຖ່າຍ X-Ray ໜ້າເອິກ (PA view)',
+            'examination_notes' => 'ຖ່າຍພາບສຳເລັດ, ຄົນໄຂ້ຮ່ວມມືດີ, ຄຸນນະພາບຮູບພາບຊັດເຈນ',
+            
+            'findings' => 'X-Ray ໜ້າເອິກ: ປອດທັງສອງຂ້າງປົກກະຕິ, ບໍ່ມີເງົາຂຸ່ນ, ຫົວໃຈຂະໜາດປົກກະຕິ',
+            'diagnosis' => 'X-Ray ໜ້າເອິກປົກກະຕິ',
+            'recommendations' => 'ຜົນ X-Ray ບໍ່ພົບຄວາມຜິດປົກກະຕິ, ສອດຄ່ອງກັບການວິນິໄຈໄຂ້ຫວັດທົ່ວໄປ',
+            
+            'status' => 'Completed',
+            'updated_by' => $nurse->id
+        ]);
+    }
 
-        $this->command->info('📈 Treatment Statistics:');
-        $this->command->info("   - ລວມການປິ່ນປົວ: {$totalTreatments} ຄັ້ງ");
-        $this->command->info("   - ສຳເລັດແລ້ວ: {$completedTreatments} ຄັ້ງ");
-        $this->command->info("   - ກຳລັງເຮັດ: {$inProgressTreatments} ຄັ້ງ");
-        $this->command->info("   - ເວລາເຄີ່ຍ: " . round($avgDuration, 0) . " ນາທີ");
-        $this->command->info("   - ທ່ານໝໍທີ່ເຮັດວຽກ: {$activeDoctors} ຄົນ");
+    /**
+     * ສ້າງ Treatment ທົ່ວໄປ
+     */
+    private function createGeneralTreatment($queueService, $doctor, $room)
+    {
+        Treatment::create([
+            'queue_service_id' => $queueService->id,
+            'room_id' => $room->id,
+            'performed_by' => $doctor->id,
+            'treatment_started_at' => now()->subMinutes(60),
+            'treatment_ended_at' => now()->subMinutes(30),
+            
+            'examination_notes' => "ເຮັດການ {$queueService->service->service_name}",
+            'findings' => 'ຜົນການກວດປົກກະຕິ',
+            'diagnosis' => 'ປົກກະຕິ',
+            'recommendations' => 'ຕິດຕາມອາການຕໍ່ໄປ',
+            
+            'status' => 'Completed',
+            'updated_by' => $doctor->id
+        ]);
     }
 }

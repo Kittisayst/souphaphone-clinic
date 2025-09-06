@@ -1,240 +1,347 @@
 <?php
-
-// =================================================================================
 // database/seeders/QueueSeeder.php
-// Seeder ສຳລັບສ້າງຄິວທົດລອງ - ແບບງ່າຍ 3 ຄິວ
-// =================================================================================
 
 namespace Database\Seeders;
 
-use App\Models\Queue;
-use App\Models\QueueService;
-use App\Models\VitalSign;
-use App\Models\Treatment;
-use App\Models\Lab;
-use App\Models\Prescription;
-use App\Models\Payment;
-use App\Models\Patient;
-use App\Models\User;
-use App\Models\Service;
-use App\Models\Medicine;
 use Illuminate\Database\Seeder;
+use App\Models\{Queue, Patient, User, Service, QueueService, VitalSign, Treatment, Room};
+use Carbon\Carbon;
 
 class QueueSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->command->info('🔄 Creating demo queues...');
+        $this->command->info('ກຳລັງສ້າງຂໍ້ມູນຄິວທົດສອບ...');
 
-        // ตรวจสอบข้อมูลพื้นฐาน
+        // ຫາຂໍ້ມູນພື້ນຖານທີ່ຈຳເປັນ
         $patients = Patient::limit(3)->get();
-        $doctors = User::where('role', 'doctor')->limit(2)->get();
-        $nurses = User::where('role', 'nurse')->first();
-        $receptionist = User::where('role', 'cashier')->first();
-        $services = Service::limit(4)->get();
-        $medicines = Medicine::limit(3)->get();
+        $doctor = User::where('role', 'doctor')->first();
+        $nurse = User::where('role', 'nurse')->first();
+        $receptionist = User::where('role', 'receptionist')->first();
 
-        if ($patients->count() < 3 || $doctors->count() < 1) {
-            $this->command->error('❌ ຕ້ອງມີຂໍ້ມູນ Patients ແລະ Users ກ່ອນ!');
+        $consultationService = Service::where('service_category', 'Consultation')->first();
+        $bloodTestService = Service::where('service_category', 'Blood_Test')->first();
+        $xrayService = Service::where('service_category', 'X_Ray')->first();
+
+        $consultationRoom = Room::where('room_type', 'Consultation')->first();
+        $labRoom = Room::where('room_type', 'Laboratory')->first();
+
+        if (!$patients->count() || !$doctor || !$consultationService) {
+            $this->command->error('ກະລຸນາ run PatientSeeder, UserSeeder, ServiceSeeder ກ່ອນ');
             return;
         }
 
-        // ສ້າງຄິວທົດລອງ 3 ຄິວ
-        $queueData = [
-            // ຄິວທີ 1: ສຳເລັດແລ້ວ
-            [
-                'queue_number' => 1,
-                'patient_id' => $patients->get(0)->id,
-                'initial_complaint' => 'ປວດຫົວ ແລະ ໄຂ້',
-                'queue_status' => 'Completed',
-                'services' => [
-                    ['service_id' => 1, 'priority' => 1], // ກວດທົ່ວໄປ
-                    ['service_id' => 2, 'priority' => 2], // ກວດເລືອດ
-                ],
-                'medicines' => [
-                    ['medicine_id' => 1, 'quantity' => 10], // Paracetamol
-                    ['medicine_id' => 2, 'quantity' => 6],  // Ibuprofen
-                ]
-            ],
+        $today = now()->toDateString();
 
-            // ຄິວທີ 2: ກຳລັງລໍຖ້າຜົນກວດ
-            [
-                'queue_number' => 2,
-                'patient_id' => $patients->get(1)->id,
-                'initial_complaint' => 'ໄອ ແລະ ເຈັບໜ້າເອິກ',
-                'queue_status' => 'Lab_Testing',
-                'services' => [
-                    ['service_id' => 1, 'priority' => 1], // ກວດທົ່ວໄປ
-                    ['service_id' => 3, 'priority' => 2], // X-Ray
-                ],
-                'medicines' => [], // ຍັງບໍ່ສັ່ງຢາ
-            ],
+        // ===================================
+        // 1. ຄິວທີ່ກວດສຳເລັດທຸກຢ່າງ (ມີ 2 queue_services)
+        // ===================================
 
-            // ຄິວທີ 3: ຍັງລໍຖ້າກວດເບື້ອງຕົ້ນ
-            [
-                'queue_number' => 3,
-                'patient_id' => $patients->get(2)->id,
-                'initial_complaint' => 'ປວດທ້ອງ',
-                'queue_status' => 'Registered',
-                'services' => [
-                    ['service_id' => 1, 'priority' => 1], // ກວດທົ່ວໄປ
-                ],
-                'medicines' => [], // ຍັງບໍ່ສັ່ງຢາ
-            ]
-        ];
+        $this->command->info('1. ສ້າງຄິວທີ່ກວດສຳເລັດທຸກຢ່າງ...');
 
-        foreach ($queueData as $data) {
-            // 1. ສ້າງຄິວ
-            $queue = Queue::create([
-                'patient_id' => $data['patient_id'],
-                'queue_number' => $data['queue_number'],
-                'queue_date' => now()->format('Y-m-d'),
-                'initial_complaint' => $data['initial_complaint'],
-                'doctor_id' => $doctors->first()->id,
-                'queue_status' => $data['queue_status'],
-                'priority_level' => 'Normal',
-                'created_by' => $receptionist->id,
-                'vital_checked_at' => in_array($data['queue_status'], ['Vital_Checked', 'With_Doctor', 'Lab_Testing', 'Results_Ready', 'Completed']) ? now()->subHours(2) : null,
-                'doctor_start_at' => in_array($data['queue_status'], ['With_Doctor', 'Lab_Testing', 'Results_Ready', 'Completed']) ? now()->subHours(1) : null,
-                'completed_at' => $data['queue_status'] === 'Completed' ? now()->subMinutes(30) : null,
+        $completedQueue = Queue::create([
+            'patient_id' => $patients[0]->id,
+            'queue_number' => 1,
+            'waiting_number' => 0, // ສຳເລັດແລ້ວ
+            'queue_date' => $today,
+            'initial_complaint' => 'ປວດຫົວ, ໄຂ້ ມາກວດສຸຂະພາບ',
+            'doctor_id' => $doctor->id,
+            'assigned_room_id' => $consultationRoom->id,
+            'queue_status' => 'Completed',
+            'priority_level' => 'Normal',
+            'created_by' => $receptionist->id,
+
+            // ເວລາຕ່າງໆ (ຈຳລອງວ່າຜ່ານມາແລ້ວ)
+            'vital_checked_at' => now()->subHours(2),
+            'room_assigned_at' => now()->subMinutes(90), 
+            'doctor_start_at' => now()->subMinutes(90), 
+            'lab_start_at' => now()->subMinutes(45),
+            'results_ready_at' => now()->subMinutes(15),
+            'completed_at' => now()->subMinutes(5),
+        ]);
+
+        // Vital Signs ສຳລັບຄິວທີ 1
+        VitalSign::create([
+            'queue_id' => $completedQueue->id,
+            'temperature' => 37.2,
+            'weight' => 65.5,
+            'height' => 170.0,
+            'heart_rate' => 78,
+            'blood_pressure_sys' => 120,
+            'blood_pressure_dia' => 80,
+            'recorded_by' => $nurse->id,
+            'notes' => 'ການກວດເບື້ອງຕົ້ນປົກກະຕິ'
+        ]);
+
+        // Queue Service 1: ການປຶກສາ
+        $consultationQS = QueueService::create([
+            'queue_id' => $completedQueue->id,
+            'service_id' => $consultationService->id,
+            'added_by' => $receptionist->id,
+            'service_status' => 'Completed',
+            'priority_order' => 1,
+            'assigned_to' => $doctor->id,
+            'scheduled_at' => now()->subMinutes(90),
+            'started_at' => now()->subMinutes(90),
+            'completed_at' => now()->subMinutes(30),
+            'notes' => 'ການກວດທົ່ວໄປ'
+        ]);
+
+        // Treatment ສຳລັບການປຶກສາ
+        Treatment::create([
+            'queue_service_id' => $consultationQS->id,
+            'room_id' => $consultationRoom->id,
+            'performed_by' => $doctor->id,
+            'treatment_started_at' => now()->subMinutes(90),
+            'treatment_ended_at' => now()->subMinutes(30),
+
+            // ຂໍ້ມູນການກວດ
+            'medical_history_notes' => 'ເຄີຍມີໄຂ້ຫວັດເມື່ອອາທິດທີ່ແລ້ວ, ບໍ່ເຄີຍແພ້ຢາ',
+            'current_symptoms' => 'ປວດຫົວດ້ານຫຼັງ, ໄຂ້ເລັກນ້ອຍ, ເມື່ອຍລ້າ',
+            'physical_examination' => 'ກວດຫູ ຄໍ ດັງ ປົກກະຕິ, ບໍ່ມີອາການຜິດປົກກະຕິ',
+            'examination_notes' => 'ຄົນໄຂ້ມີອາການໄຂ້ຫວັດທົ່ວໄປ, ບໍ່ຮ້າຍແຮງ',
+
+            // ການວິນິໄຈ
+            'initial_assessment' => 'ອາການຄ້າຍໄຂ້ຫວັດທົ່ວໄປ',
+            'findings' => 'ອຸນຫະພູມຂຶ້ນເລັກນ້ອຍ, ບໍ່ມີອາການແຊກຊ້ອນ',
+            'diagnosis' => 'ໄຂ້ຫວັດທົ່ວໄປ (Common Cold)',
+
+            // ການປິ່ນປົວ
+            'treatment_plan' => 'ກິນຢາລົດໄຂ້, ພັກຜ່ອນ, ດື່ມນ້ຳຫຼາຍໆ',
+            'recommendations' => 'ພັກຜ່ອນ 2-3 ວັນ, ຫຼີກເວັ້ນອາຫານເຢັນ',
+            'doctor_recommendations' => 'ຖ້າໄຂ້ບໍ່ຫາຍໃນ 3 ວັນໃຫ້ກັບມາກວດ',
+
+            // ການຕິດຕາມ
+            'follow_up_required' => true,
+            'follow_up_date' => now()->addDays(3)->toDateString(),
+            'follow_up_notes' => 'ກວດເບິ່ງອາການຖ້າບໍ່ດີຂຶ້ນ',
+
+            'status' => 'Completed',
+            'updated_by' => $doctor->id
+        ]);
+
+        // Queue Service 2: ກວດເລືອດ
+        if ($bloodTestService) {
+            $bloodTestQS = QueueService::create([
+                'queue_id' => $completedQueue->id,
+                'service_id' => $bloodTestService->id,
+                'added_by' => $doctor->id, // ທ່ານໝໍສັ່ງເພີ່ມ
+                'service_status' => 'Completed',
+                'priority_order' => 2,
+                'assigned_to' => $nurse->id,
+                'scheduled_at' => now()->subMinutes(45),
+                'started_at' => now()->subMinutes(45),
+                'completed_at' => now()->subMinutes(15),
+                'notes' => 'ທ່ານໝໍສັ່ງກວດເລືອດເພື່ອຢືນຢັນ'
             ]);
 
-            $this->command->info("📝 Created Queue #{$data['queue_number']} - {$data['queue_status']}");
+            // Treatment ສຳລັບການກວດເລືອດ
+            Treatment::create([
+                'queue_service_id' => $bloodTestQS->id,
+                'room_id' => $labRoom->id,
+                'performed_by' => $nurse->id,
+                'treatment_started_at' => now()->subMinutes(45),
+                'treatment_ended_at' => now()->subMinutes(15),
 
-            // 2. ສ້າງ Vital Signs (ຖ້າກວດເບື້ອງຕົ້ນແລ້ວ)
-            if ($queue->vital_checked_at) {
-                VitalSign::create([
-                    'queue_id' => $queue->id,
-                    'temperature' => fake()->randomFloat(1, 36.0, 38.5),
-                    'weight' => fake()->randomFloat(2, 50, 80),
-                    'height' => fake()->randomFloat(2, 150, 170),
-                    'blood_pressure_sys' => fake()->numberBetween(110, 130),
-                    'blood_pressure_dia' => fake()->numberBetween(70, 85),
-                    'heart_rate' => fake()->numberBetween(70, 90),
-                    'recorded_by' => $nurses->id,
-                ]);
-            }
+                'examination_notes' => 'ເຈາະເລືອດຈາກແຂນຊ້າຍ',
+                'findings' => 'ຄ່າເລືອດປົກກະຕິ, ບໍ່ມີການອັກເສບ',
+                'diagnosis' => 'ຜົນກວດເລືອດປົກກະຕິ',
+                'recommendations' => 'ຜົນກວດປົກກະຕິ, ຕິດຕາມອາການຕໍ່ໄປ',
 
-            $serviceTotal = 0;
-
-            // 3. ສ້າງ Queue Services
-            foreach ($data['services'] as $serviceData) {
-                if (!isset($services[$serviceData['service_id'] - 1])) continue;
-                
-                $service = $services[$serviceData['service_id'] - 1];
-                $serviceTotal += $service->base_price;
-
-                $isCompleted = $data['queue_status'] === 'Completed';
-                $isInProgress = in_array($data['queue_status'], ['Lab_Testing', 'Results_Ready']);
-
-                $queueService = QueueService::create([
-                    'queue_id' => $queue->id,
-                    'service_id' => $service->id,
-                    'added_by' => $receptionist->id,
-                    'service_status' => $isCompleted ? 'Completed' : ($isInProgress ? 'In_Progress' : 'Added'),
-                    'priority_order' => $serviceData['priority'],
-                    'assigned_to' => $doctors->first()->id,
-                    'scheduled_at' => $queue->doctor_start_at,
-                    'started_at' => $queue->doctor_start_at,
-                    'completed_at' => $isCompleted ? now()->subMinutes(45) : null,
-                ]);
-
-                // 4. ສ້າງ Treatment
-                if ($queue->doctor_start_at) {
-                    Treatment::create([
-                        'queue_service_id' => $queueService->id,
-                        'room_id' => 1, // ຫ້ອງກວດທົ່ວໄປ
-                        'performed_by' => $doctors->first()->id,
-                        'treatment_started_at' => $queue->doctor_start_at,
-                        'treatment_ended_at' => $isCompleted ? now()->subMinutes(45) : null,
-                        'examination_notes' => "ກວດພົບອາການ: {$data['initial_complaint']}",
-                        'findings' => 'ອາການເບົາໆ ບໍ່ຮ້າຍແຮງ',
-                        'recommendations' => 'ພັກຜ່ອນ ແລະ ກິນຢາຕາມເວລາ',
-                        'status' => $isCompleted ? 'Completed' : 'In_Progress',
-                    ]);
-                }
-
-                // 5. ສ້າງ Lab Results (ຖ້າບໍລິການມີຜົນກວດ)
-                if ($service->has_lab_result && $queue->doctor_start_at) {
-                    $isLabCompleted = $data['queue_status'] === 'Completed';
-                    
-                    Lab::create([
-                        'queue_service_id' => $queueService->id,
-                        'lab_code' => 'LAB' . date('Ymd') . str_pad($queue->queue_number * 10 + $serviceData['priority'], 3, '0', STR_PAD_LEFT),
-                        'test_results' => [
-                            'parameter1' => fake()->numberBetween(10, 15),
-                            'parameter2' => fake()->numberBetween(4000, 8000),
-                            'conclusion' => 'ຜົນການກວດໃນເກນປົກກະຕິ'
-                        ],
-                        'result_summary' => 'ຜົນການກວດປົກກະຕິ',
-                        'reference_values' => 'ຕາມມາດຕະຖານການແພດ',
-                        'interpretation' => 'ບໍ່ມີຄວາມຜິດປົກກະຕິ',
-                        'performed_by' => $nurses->id,
-                        'performed_at' => now()->subHour(),
-                        'reviewed_by_doctor_id' => $isLabCompleted ? $doctors->first()->id : null,
-                        'reviewed_at' => $isLabCompleted ? now()->subMinutes(30) : null,
-                        'patient_notified' => $isLabCompleted,
-                        'notified_at' => $isLabCompleted ? now()->subMinutes(20) : null,
-                        'lab_status' => $isLabCompleted ? 'Patient_Notified' : 'Completed',
-                    ]);
-                }
-            }
-
-            // 6. ສ້າງ Prescriptions (ຖ້າມີການສັ່ງຢາ)
-            $medicineTotal = 0;
-            foreach ($data['medicines'] as $medicineData) {
-                if (!isset($medicines[$medicineData['medicine_id'] - 1])) continue;
-                
-                $medicine = $medicines[$medicineData['medicine_id'] - 1];
-                $totalPrice = $medicineData['quantity'] * $medicine->unit_price;
-                $medicineTotal += $totalPrice;
-
-                $isDispensed = $data['queue_status'] === 'Completed';
-
-                Prescription::create([
-                    'queue_id' => $queue->id,
-                    'medicine_id' => $medicine->id,
-                    'dosage' => '1 ແຜັດ',
-                    'frequency' => 'ວັນລະ 3 ເທື່ອ',
-                    'duration' => '5 ວັນ',
-                    'quantity' => $medicineData['quantity'],
-                    'instructions' => 'ກິນຫຼັງອາຫານ, ດື່ມນ້ຳຫຼາຍໆ',
-                    'prescribed_by_id' => $doctors->first()->id,
-                    'dispensed_by_id' => $isDispensed ? $nurses->id : null,
-                    'dispensed_quantity' => $isDispensed ? $medicineData['quantity'] : null,
-                    'dispensed_at' => $isDispensed ? now()->subMinutes(15) : null,
-                    'unit_price' => $medicine->unit_price,
-                    'total_price' => $totalPrice,
-                    'status' => $isDispensed ? 'Dispensed' : 'Prescribed',
-                ]);
-            }
-
-            // 7. ສ້າງ Payment (ຖ້າສຳເລັດແລ້ວ)
-            if ($data['queue_status'] === 'Completed') {
-                $subtotal = $serviceTotal + $medicineTotal;
-                $finalAmount = $subtotal;
-
-                Payment::create([
-                    'queue_id' => $queue->id,
-                    'service_total' => $serviceTotal,
-                    'medicine_total' => $medicineTotal,
-                    'subtotal' => $subtotal,
-                    'discount_amount' => 0,
-                    'tax_amount' => 0,
-                    'final_amount' => $finalAmount,
-                    'payment_method' => 'Cash',
-                    'payment_status' => 'Paid',
-                    'paid_at' => now()->subMinutes(10),
-                    'received_by' => $receptionist->id,
-                    'receipt_number' => 'REC' . date('Ymd') . str_pad($data['queue_number'], 3, '0', STR_PAD_LEFT),
-                ]);
-            }
+                'status' => 'Completed',
+                'updated_by' => $nurse->id
+            ]);
         }
 
-        $this->command->info('✅ Created 3 demo queues with different statuses');
-        $this->command->info('📋 Queue Summary:');
-        $this->command->info('   - Queue #1: ສຳເລັດແລ້ວ (Completed)');
-        $this->command->info('   - Queue #2: ລໍຖ້າຜົນກວດ (Lab_Testing)');
-        $this->command->info('   - Queue #3: ຍັງບໍ່ກວດ (Registered)');
+        // ===================================
+        // 2. ຄິວທີ່ລົງທະບຽນຍັງບໍ່ໄດ້ເຮັດຫຍັງ
+        // ===================================
+
+        $this->command->info('2. ສ້າງຄິວທີ່ລົງທະບຽນຍັງບໍ່ໄດ້ເຮັດຫຍັງ...');
+
+        $registeredQueue1 = Queue::create([
+            'patient_id' => $patients[1]->id,
+            'queue_number' => 2,
+            'waiting_number' => 1, // ລໍຖ້າທີ 1
+            'queue_date' => $today,
+            'initial_complaint' => 'ປວດທ້ອງ, ຖ່າຍຫຼວງ',
+            'queue_status' => 'Registered',
+            'priority_level' => 'Normal',
+            'created_by' => $receptionist->id,
+        ]);
+
+        // ເພີ່ມບໍລິການການປຶກສາ
+        QueueService::create([
+            'queue_id' => $registeredQueue1->id,
+            'service_id' => $consultationService->id,
+            'added_by' => $receptionist->id,
+            'service_status' => 'Added',
+            'priority_order' => 1,
+            'notes' => 'ການກວດທົ່ວໄປ'
+        ]);
+
+        // ===================================
+        // 3. ຄິວທີ່ລົງທະບຽນຍັງບໍ່ໄດ້ເຮັດຫຍັງ (ອີກໜຶ່ງຄິວ)
+        // ===================================
+
+        $this->command->info('3. ສ້າງຄິວທີ່ລົງທະບຽນຍັງບໍ່ໄດ້ເຮັດຫຍັງ (ອີກໜຶ່ງຄິວ)...');
+
+        $registeredQueue2 = Queue::create([
+            'patient_id' => $patients[2]->id,
+            'queue_number' => 3,
+            'waiting_number' => 2, // ລໍຖ້າທີ 2
+            'queue_date' => $today,
+            'initial_complaint' => 'ກວດສຸຂະພາບປະຈຳປີ',
+            'queue_status' => 'Registered',
+            'priority_level' => 'Normal',
+            'created_by' => $receptionist->id,
+        ]);
+
+        // ເພີ່ມບໍລິການການປຶກສາ
+        QueueService::create([
+            'queue_id' => $registeredQueue2->id,
+            'service_id' => $consultationService->id,
+            'added_by' => $receptionist->id,
+            'service_status' => 'Added',
+            'priority_order' => 1,
+            'notes' => 'ການກວດສຸຂະພາບປະຈຳປີ'
+        ]);
+
+        // ເພີ່ມບໍລິການ X-Ray (ຖ້າມີ)
+        if ($xrayService) {
+            QueueService::create([
+                'queue_id' => $registeredQueue2->id,
+                'service_id' => $xrayService->id,
+                'added_by' => $receptionist->id,
+                'service_status' => 'Added',
+                'priority_order' => 2,
+                'notes' => 'ກວດ X-Ray ໜ້າເອິກປະຈຳປີ'
+            ]);
+        }
+
+        // ===================================
+        // ສ້າງຄິວເພີ່ມເຕີມສຳລັບການທົດສອບ
+        // ===================================
+
+        $this->command->info('ສ້າງຄິວເພີ່ມເຕີມ...');
+
+        // ຄິວທີ່ກວດເບື້ອງຕົ້ນແລ້ວ
+        if ($patients->count() > 3) {
+            $vitalCheckedQueue = Queue::create([
+                'patient_id' => $patients[3]->id,
+                'queue_number' => 4,
+                'waiting_number' => 3, // ລໍຖ້າທີ 3
+                'queue_date' => $today,
+                'initial_complaint' => 'ປວດຫຼັງ, ຂໍ້ອັກເສບ',
+                'queue_status' => 'Vital_Checked',
+                'priority_level' => 'Urgent',
+                'created_by' => $receptionist->id,
+                'vital_checked_at' => now()->subMinutes(30),
+            ]);
+
+            // Vital Signs
+            VitalSign::create([
+                'queue_id' => $vitalCheckedQueue->id,
+                'temperature' => 36.8,
+                'weight' => 72.0,
+                'height' => 175.0,
+                'heart_rate' => 85,
+                'blood_pressure_sys' => 130,
+                'blood_pressure_dia' => 85,
+                'recorded_by' => $nurse->id,
+                'notes' => 'ຄວາມດັນເລືອດສູງເລັກນ້ອຍ'
+            ]);
+
+            // ເພີ່ມບໍລິການ
+            QueueService::create([
+                'queue_id' => $vitalCheckedQueue->id,
+                'service_id' => $consultationService->id,
+                'added_by' => $receptionist->id,
+                'service_status' => 'Added',
+                'priority_order' => 1,
+                'notes' => 'ກວດປວດຫຼັງ'
+            ]);
+        }
+
+        // ຄິວທີ່ຍົກເລີກ
+        if ($patients->count() > 4) {
+            $cancelledQueue = Queue::create([
+                'patient_id' => $patients[4]->id,
+                'queue_number' => 5,
+                'waiting_number' => 0, // ຍົກເລີກແລ້ວ
+                'queue_date' => $today,
+                'initial_complaint' => 'ມີເຫດຸການດ່ວນ ຂໍຍົກເລີກ',
+                'queue_status' => 'Cancelled',
+                'priority_level' => 'Normal',
+                'created_by' => $receptionist->id,
+            ]);
+
+            QueueService::create([
+                'queue_id' => $cancelledQueue->id,
+                'service_id' => $consultationService->id,
+                'added_by' => $receptionist->id,
+                'service_status' => 'Cancelled',
+                'priority_order' => 1,
+                'notes' => 'ຄົນໄຂ້ຍົກເລີກເອງ'
+            ]);
+        }
+
+        // ===================================
+        // ສະຫຼຸບຜົນ
+        // ===================================
+
+        $this->command->info('');
+        $this->command->info('✅ ສ້າງຂໍ້ມູນຄິວທົດສອບສຳເລັດ!');
+        $this->command->info('');
+
+        $this->command->table(
+            ['ຄິວ', 'ຄົນໄຂ້', 'ສະຖານະ', 'ເລກລໍຖ້າ', 'ບໍລິການ'],
+            [
+                [
+                    '#1',
+                    $patients[0]->full_name ?? 'ຄົນໄຂ້ 1',
+                    'ສຳເລັດທຸກຢ່າງ',
+                    '0 (ສຳເລັດ)',
+                    'ປຶກສາ + ກວດເລືອດ'
+                ],
+                [
+                    '#2',
+                    $patients[1]->full_name ?? 'ຄົນໄຂ້ 2',
+                    'ລົງທະບຽນແລ້ວ',
+                    '1',
+                    'ປຶກສາ'
+                ],
+                [
+                    '#3',
+                    $patients[2]->full_name ?? 'ຄົນໄຂ້ 3',
+                    'ລົງທະບຽນແລ້ວ',
+                    '2',
+                    'ປຶກສາ + X-Ray'
+                ],
+                [
+                    '#4',
+                    $patients[3]->full_name ?? 'ຄົນໄຂ້ 4',
+                    'ກວດເບື້ອງຕົ້ນແລ້ວ',
+                    '3',
+                    'ປຶກສາ'
+                ],
+                [
+                    '#5',
+                    $patients[4]->full_name ?? 'ຄົນໄຂ້ 5',
+                    'ຍົກເລີກ',
+                    '0 (ຍົກເລີກ)',
+                    'ປຶກສາ (ຍົກເລີກ)'
+                ]
+            ]
+        );
+
+        $this->command->info('');
+        $this->command->info('📊 ສະຖິຕິ:');
+        $this->command->info('   - ຄິວທັງໝົດ: 5 ຄິວ');
+        $this->command->info('   - ກຳລັງລໍຖ້າ: 3 ຄິວ');
+        $this->command->info('   - ສຳເລັດແລ້ວ: 1 ຄິວ');
+        $this->command->info('   - ຍົກເລີກ: 1 ຄິວ');
+        $this->command->info('');
+        $this->command->info('🎯 ພ້ອມທົດສອບ MVP Queue System!');
     }
 }

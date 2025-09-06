@@ -2,34 +2,40 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\User;
+use App\Models\Patient;
+use App\Models\Queue;
+use App\Models\QueueService;
+use App\Models\Room;
+use App\Models\Service;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class StatsOverview extends BaseWidget
 {
+
     protected function getStats(): array
     {
+        $mostFrequentService = QueueService::select('service_id')
+            ->selectRaw('COUNT(*) as count')
+            ->groupBy('service_id')
+            ->orderBy('count', 'desc')
+            ->first();
         return [
-            Stat::make('ຜູ້ໃຊ້ງານທັງໝົດ', User::count())
-                ->description('ຜູ້ໃຊ້ງານໃນລະບົບ')
-                ->descriptionIcon('heroicon-m-users')
+            Stat::make('ຄິວມື້ນີ້', Queue::today()->count() ?? 0)
+                ->description('ສຳເລັດ: ' . Queue::today()->completed()->count() ?? 0)
                 ->color('success'),
+            Stat::make('ຄົນໄຂ້ທັງໝົດ', Patient::count() ?? 0)
+                ->description('ຍິງ ' . Patient::where('gender', 'M')->count() ?? 0),
+            Stat::make('ການບໍລິການ', Service::count() ?? 0)
+                ->description('ນິຍົມທີ່ສຸດ: ' . $mostFrequentService->service->service_name ?? 'N/A'),
+            Stat::make('ຫ້ອງກວດທັງໝົດ', Room::count() ?? 0)
+                ->description('3% increase'),
 
-            Stat::make('ຜູ້ໃຊ້ງານ Active', User::where('is_active', true)->count())
-                ->description('ຜູ້ໃຊ້ງານທີ່ເປີດໃຊ້ງານ')
-                ->descriptionIcon('heroicon-m-check-circle')
-                ->color('primary'),
-
-            Stat::make('ໝໍ', User::where('role', 'doctor')->where('is_active', true)->count())
-                ->description('ໝໍທີ່ເປີດໃຊ້ງານ')
-                ->descriptionIcon('heroicon-m-user-plus')
-                ->color('warning'),
-
-            Stat::make('ພະຍາບານ', User::where('role', 'nurse')->where('is_active', true)->count())
-                ->description('ພະຍາບານທີ່ເປີດໃຊ້ງານ')
-                ->descriptionIcon('heroicon-m-heart')
-                ->color('info'),
         ];
+    }
+
+    protected function getColumns(): int
+    {
+        return 4;
     }
 }

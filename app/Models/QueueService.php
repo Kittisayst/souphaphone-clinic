@@ -154,4 +154,37 @@ class QueueService extends Model
         }
         return null;
     }
+
+    // ===================== Helper =================================
+
+    /**
+     * ເລີ່ມຕົ້ນບໍລິການ
+     */
+    public function markAsInProgress(): bool
+    {
+        $this->service_status = 'In_Progress';
+        $this->started_at = now();
+        return $this->save();
+    }
+
+    /**
+     * ສຳເລັດບໍລິການ
+     */
+    public function markAsCompleted(): bool
+    {
+        $this->service_status = 'Completed';
+        $this->completed_at = now();
+        return $this->save();
+    }
+
+    /**
+     * ມອບໝາຍພະນັກງານ
+     */
+    public function assignToUser($userId): bool
+    {
+        $this->assigned_to = $userId;
+        $this->service_status = 'Scheduled';
+        $this->scheduled_at = now();
+        return $this->save();
+    }
 }

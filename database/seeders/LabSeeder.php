@@ -133,7 +133,7 @@ class LabSeeder extends Seeder
                 'reference_values' => $data['reference_values'],
                 'interpretation' => $data['interpretation'],
                 'images_attachments' => $data['images_attachments'] ?? null,
-                'performed_by_id' => $labTechnicians->random()->id,
+                'performed_by' => $labTechnicians->random()->id,
                 'performed_at' => $performedAt,
                 'reviewed_by_doctor_id' => $reviewedAt ? $doctors->random()->id : null,
                 'reviewed_at' => $reviewedAt,

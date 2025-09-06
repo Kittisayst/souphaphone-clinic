@@ -36,9 +36,9 @@ class Medicine extends Model
     // =================== RELATIONSHIPS ===================
 
     // ໃບສັ່ງຢາທີ່ໃຊ້ຢາຊະນິດນີ້
-    public function prescriptions()
+    public function medicationInstructions()
     {
-        return $this->hasMany(Prescription::class);
+        return $this->hasMany(MedicationInstruction::class);
     }
 
     // =================== SCOPES ===================
@@ -71,8 +71,8 @@ class Medicine extends Model
     public function scopeAvailable($query)
     {
         return $query->where('expiry_date', '>=', now())
-                    ->where('stock_quantity', '>', 0)
-                    ->whereNull('deleted_at');
+            ->where('stock_quantity', '>', 0)
+            ->whereNull('deleted_at');
     }
 
     // =================== ACCESSORS ===================
@@ -86,8 +86,10 @@ class Medicine extends Model
     // ສະຖານະສະຕ໋ອກ
     public function getStockStatusAttribute()
     {
-        if ($this->stock_quantity <= 0) return 'Out_of_Stock';
-        if ($this->stock_quantity <= $this->min_stock_level) return 'Low_Stock';
+        if ($this->stock_quantity <= 0)
+            return 'Out_of_Stock';
+        if ($this->stock_quantity <= $this->min_stock_level)
+            return 'Low_Stock';
         return 'In_Stock';
     }
 
@@ -101,5 +103,40 @@ class Medicine extends Model
     public function getFormattedExpiryDateAttribute()
     {
         return $this->expiry_date ? Carbon::parse($this->expiry_date)->format('d/m/Y') : null;
+    }
+
+    // ຈຳນວນວັນທີ່ເຫຼືອກ່ອນໝົດອາຍຸ
+    public function getDaysToExpiryAttribute()
+    {
+        if (!$this->expiry_date) {
+            return null;
+        }
+        
+        $days = (int) now()->diffInDays($this->expiry_date, false);
+        return $days >= 0 ? $days : 0; // ຖ້າໝົດອາຍຸແລ້ວ ໃຫ້ສະແດງ 0
+    }
+
+    // ສະຖານະອາຍຸ (ໃໝ່, ໃກ້ໝົດ, ໝົດແລ້ວ)
+    public function getExpiryStatusAttribute()
+    {
+        $daysToExpiry = $this->days_to_expiry;
+
+        if ($daysToExpiry === null) {
+            return 'unknown';
+        }
+
+        if ($this->is_expired) {
+            return 'expired';
+        }
+
+        if ($daysToExpiry <= 30) {
+            return 'critical'; // ໃກ້ໝົດອາຍຸຫຼາຍ (30 ວັນ)
+        }
+
+        if ($daysToExpiry <= 90) {
+            return 'warning'; // ໃກ້ໝົດອາຍຸ (3 ເດືອນ)
+        }
+
+        return 'safe'; // ຍັງໃຊ້ໄດ້ດີ
     }
 }

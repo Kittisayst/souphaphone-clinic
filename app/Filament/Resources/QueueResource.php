@@ -170,7 +170,7 @@ class QueueResource extends Resource
                     VitalSignsAction::makeTableAction(),   // ຂັ້ນຕອນທີ 2
                     AddServiceAction::makeTableAction(),   // ຂັ້ນຕອນທີ 3a
                     DoctorConsultationAction::makeTableAction(),      // ຂັ້ນຕອນທີ 3
-                    LabTestingAction::makeOrderLabAction(),              // ຂັ້ນຕອນທີ 4a
+                    LabTestingAction::make(),              // ຂັ້ນຕອນທີ 4a
                     SkipLabAction::make(),                 // ຂັ້ນຕອນທີ 4b (skip)
                     ResultsReadyAction::make(),            // ຂັ້ນຕອນທີ 5
                     CompleteQueueAction::make(),           // ຂັ້ນຕອນທີ 6

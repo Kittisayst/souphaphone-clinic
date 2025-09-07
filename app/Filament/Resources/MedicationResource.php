@@ -2,9 +2,9 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\MedicationInstructionResource\Pages;
-use App\Filament\Resources\MedicationInstructionResource\RelationManagers;
-use App\Models\MedicationInstruction;
+use App\Filament\Resources\MedicationResource\Pages;
+use App\Filament\Resources\MedicationResource\RelationManagers;
+use App\Models\Medication;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -13,9 +13,9 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class MedicationInstructionResource extends Resource
+class MedicationResource extends Resource
 {
-    protected static ?string $model = MedicationInstruction::class;
+    protected static ?string $model = Medication::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
@@ -56,9 +56,9 @@ class MedicationInstructionResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListMedicationInstructions::route('/'),
-            'create' => Pages\CreateMedicationInstruction::route('/create'),
-            'edit' => Pages\EditMedicationInstruction::route('/{record}/edit'),
+            'index' => Pages\ListMedications::route('/'),
+            'create' => Pages\CreateMedication::route('/create'),
+            'edit' => Pages\EditMedication::route('/{record}/edit'),
         ];
     }
 }

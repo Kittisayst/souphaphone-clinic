@@ -20,8 +20,6 @@ return new class extends Migration {
                         ->comment('ຊື່ຕົວຈິງ');
                   $table->string('last_name', 100)
                         ->comment('ນາມສະກຸນ');
-                  $table->string('full_name', 200)->virtualAs("CONCAT(first_name, ' ', last_name)")
-                        ->comment('ຊື່ເຕັມ (Generated)');
 
                   // ຂໍ້ມູນສ່ວນຕົວ
                   $table->enum('gender', ['Male', 'Female', 'Other'])
@@ -30,35 +28,17 @@ return new class extends Migration {
                         ->comment('ວັນເດືອນປີເກີດ');
                   $table->string('phone', 20)->nullable()
                         ->comment('ເບີໂທລະສັບ');
-                  $table->string('email', 100)->nullable()
-                        ->comment('ອີເມວ');
 
                   // ທີ່ຢູ່
                   $table->text('address')->nullable()
                         ->comment('ທີ່ຢູ່ປັດຈຸບັນ');
-                  $table->string('village', 100)->nullable()
-                        ->comment('ບ້ານ');
-                  $table->string('district', 100)->nullable()
-                        ->comment('ເມືອງ');
-                  $table->string('province', 100)->nullable()
-                        ->comment('ແຂວງ');
-
-                  // ຂໍ້ມູນສຸກເສີນ
-                  $table->string('emergency_contact_name', 200)->nullable()
-                        ->comment('ຊື່ຜູ້ຕິດຕໍ່ສຸກເສີນ');
-                  $table->string('emergency_contact_phone', 20)->nullable()
-                        ->comment('ເບີຜູ້ຕິດຕໍ່ສຸກເສີນ');
-                  $table->string('emergency_contact_relationship', 100)->nullable()
-                        ->comment('ຄວາມສຳພັນ');
 
                   // ຂໍ້ມູນການປິ່ນປົວ
-                  $table->text('medical_history')->nullable()
-                        ->comment('ປະຫວັດການປ່ວຍ');
                   $table->text('allergies')->nullable()
                         ->comment('ການແພ້ຢາ/ອາຫານ');
-                  $table->text('chronic_conditions')->nullable()
-                        ->comment('ພະຍາດເຮື້ອຮັງ');
-
+                  $table->text('note')->nullable()
+                        ->comment('ຄຳອະທິບາຍ');
+                  ;
                   // ສະຖານະ
                   $table->boolean('is_active')->default(true)
                         ->comment('ສະຖານະການໃຊ້ງານ');

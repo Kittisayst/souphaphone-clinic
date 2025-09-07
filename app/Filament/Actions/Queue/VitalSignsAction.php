@@ -1,4 +1,6 @@
 <?php
+// app/Filament/Actions/Queue/VitalSignsAction.php
+
 namespace App\Filament\Actions\Queue;
 
 use Filament\Forms\Components\Fieldset;
@@ -11,7 +13,6 @@ use App\Models\VitalSign;
 
 class VitalSignsAction
 {
-
     // ✅ ສຳລັບ Table
     public static function makeTableAction(): TableAction
     {
@@ -23,7 +24,7 @@ class VitalSignsAction
             ->modalWidth('md')
             ->modalSubmitActionLabel('ບັນທຶກ')
             ->form(self::getForm())
-            ->visible(fn($record) => $record->isRegistered())
+            ->visible(fn($record) => $record->queue_status === 'Registered')
             ->action(fn($record, array $data) => self::handleAction($record, $data));
     }
 
@@ -38,13 +39,14 @@ class VitalSignsAction
             ->modalWidth('md')
             ->modalSubmitActionLabel('ບັນທຶກ')
             ->form(self::getForm())
-            ->visible(fn($record) => $record->isRegistered())
+            ->visible(fn($record) => $record->queue_status === 'Registered')
             ->action(fn($record, array $data) => self::handleAction($record, $data));
     }
-    public static function getForm()
+
+    private static function getForm(): array
     {
         return [
-            Fieldset::make('')
+            Fieldset::make('ການກວດສັນຍາຂອງຊີວິດ')
                 ->schema([
                     TextInput::make('temperature')
                         ->label('ອຸນຫະພູມ (°C)')
@@ -52,53 +54,68 @@ class VitalSignsAction
                         ->step(0.1)
                         ->suffix(' °C')
                         ->placeholder('36.5'),
+
                     TextInput::make('weight')
                         ->label('ນ້ຳໜັກ (kg)')
                         ->numeric()
                         ->step(0.1)
                         ->suffix(' kg')
                         ->placeholder('65.0'),
+
                     TextInput::make('height')
                         ->label('ຄວາມສູງ (cm)')
                         ->numeric()
                         ->step(0.1)
                         ->suffix(' cm')
                         ->placeholder('170.0'),
+
                     TextInput::make('heart_rate')
                         ->label('ການເຕັ້ນຂອງຫົວໃຈ (bpm)')
                         ->numeric()
                         ->suffix(' bpm')
                         ->placeholder('80'),
+
                     TextInput::make('blood_pressure_sys')
-                        ->label('ຄວາມດັນເລືອດ (ສູງ) mmHg')
+                        ->label('ຄວາມດັນເລືອດ (ສູງ)')
                         ->numeric()
                         ->suffix(' mmHg')
                         ->placeholder('120'),
+
                     TextInput::make('blood_pressure_dia')
-                        ->label('ຄວາມດັນເລືອດ (ຕ່ຳ) mmHg')
+                        ->label('ຄວາມດັນເລືອດ (ຕ່ຳ)')
                         ->numeric()
                         ->suffix(' mmHg')
                         ->placeholder('80'),
+
                     Textarea::make('notes')
                         ->label('ໝາຍເຫດ')
                         ->rows(2)
-                        ->columnSpanFull(),
-
-                ])->columns(2)
+                        ->columnSpanFull()
+                        ->placeholder('ບັນທຶກສິ່ງທີ່ສັງເກດເຫັນ...'),
+                ])
+                ->columns(2)
         ];
     }
 
     private static function handleAction($record, array $data): void
     {
-        $record->vitalSign()->create([
-            ...$data,
-            'recorded_by' => auth()->id()
-        ]);
+        // ສ້າງ Vital Signs ໃໝ່
+        $vitalData = $data;
+        $vitalData['queue_id'] = $record->id;
+        $vitalData['recorded_by'] = auth()->id();
+        $vitalData['blood_pressure'] = ($data['blood_pressure_sys'] ?? '') . '/' . ($data['blood_pressure_dia'] ?? '');
 
-        $record->completeVitalSigns();
+        VitalSign::create($vitalData);
+
+        // ອັບເດດສະຖານະຄິວ
+        $record->update([
+            'queue_status' => 'Vital_Checked',
+            'updated_by' => auth()->id(),
+        ]);
 
         Notification::make()
             ->title('ບັນທຶກການກວດເບື້ອງຕົ້ນສຳເລັດ')
+            ->body("ຄິວ #{$record->queue_number} ພ້ອມໄປຫາທ່ານໝໍແລ້ວ")
             ->success()
             ->send();
     }

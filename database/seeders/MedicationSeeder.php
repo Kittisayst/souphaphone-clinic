@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Models\MedicationInstruction;
+use App\Models\Medication;
 use App\Models\Medicine;
-use App\Models\Treatment;
+use App\Models\Queue;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -15,127 +15,62 @@ class MedicationSeeder extends Seeder
      */
     public function run(): void
     {
-       $this->command->info('💊 ສ້າງຂໍ້ມູນການສັ່ງຢາ...');
+        $this->command->info('💊 ສ້າງຂໍ້ມູນການສັ່ງຢາ...');
 
-        $treatments = Treatment::all();
-        $medicines = Medicine::all();
-        $doctors = User::where('role', 'doctor')->get();
-        $pharmacist = User::where('role', 'pharmacist')->first();
-
-        $medications = [];
-
-        foreach ($treatments as $treatment) {
-            $queue = $treatment->getQueue();
-            
-            // ສັ່ງຢາສຳລັບແຕ່ລະກໍລະນີ
-            switch ($queue->id) {
-                case 1: // ໄຂ້ຫວັດ - ສຳເລັດແລ້ວ
-                    $medications = array_merge($medications, [
-                        [
-                            'treatment_id' => $treatment->id,
-                            'medicine_id' => $medicines->where('medicine_name', 'Paracetamol 500mg')->first()->id,
-                            'dosage' => '1 ເມັດ',
-                            'frequency' => 'ວັນລະ 3 ເທື່ອ',
-                            'duration' => '5 ວັນ',
-                            'total_quantity' => 15,
-                            'administration_route' => 'ກິນ',
-                            'special_instructions' => 'ກິນຫຼັງອາຫານ',
-                            'unit_price' => 500,
-                            'total_price' => 7500,
-                            'dispensing_status' => 'Dispensed',
-                            'prescribed_by' => $doctors[0]->id,
-                            'dispensed_by' => $pharmacist->id,
-                            'dispensed_at' => now()->subHours(1),
-                            'created_at' => now()->subHours(3),
-                        ],
-                        [
-                            'treatment_id' => $treatment->id,
-                            'medicine_id' => $medicines->where('medicine_name', 'Cough Syrup')->first()->id,
-                            'dosage' => '10ml',
-                            'frequency' => 'ວັນລະ 3 ເທື່ອ',
-                            'duration' => '5 ວັນ',
-                            'total_quantity' => 150,
-                            'administration_route' => 'ກິນ',
-                            'special_instructions' => 'ສັ່ນກ່ອນດື່ມ',
-                            'unit_price' => 150,
-                            'total_price' => 22500,
-                            'dispensing_status' => 'Dispensed',
-                            'prescribed_by' => $doctors[0]->id,
-                            'dispensed_by' => $pharmacist->id,
-                            'dispensed_at' => now()->subHours(1),
-                            'created_at' => now()->subHours(3),
-                        ],
-                    ]);
-                    break;
-
-                case 2: // ລໍຖ້າຜົນ Lab
-                    // ຍັງບໍ່ສັ່ງຢາ ລໍຖ້າຜົນກວດກ່ອນ
-                    break;
-
-                case 3: // ເດັກ - ກຳລັງກວດ
-                    $medications[] = [
-                        'treatment_id' => $treatment->id,
-                        'medicine_id' => $medicines->where('medicine_name', 'Paracetamol 500mg')->first()->id,
-                        'dosage' => '1/2 ເມັດ',
-                        'frequency' => 'ວັນລະ 2 ເທື່ອ',
-                        'duration' => '3 ວັນ',
-                        'total_quantity' => 3,
-                        'administration_route' => 'ກິນ',
-                        'special_instructions' => 'ບີບແລ້ວປົນນ້ຳໃຫ້ເດັກດື່ມ',
-                        'warnings' => 'ຖ້າໄຂ້ບໍ່ລົງໃຫ້ພາມາໂຮງໝໍ',
-                        'unit_price' => 500,
-                        'total_price' => 1500,
-                        'dispensing_status' => 'Prescribed',
-                        'prescribed_by' => $doctors[1]->id,
-                        'created_at' => now()->subMinutes(20),
-                    ];
-                    break;
-
-                case 4: // ຄວາມດັນສູງ, ເບົາຫວານ
-                    $medications = array_merge($medications, [
-                        [
-                            'treatment_id' => $treatment->id,
-                            'medicine_id' => $medicines->where('medicine_name', 'Amlodipine 5mg')->first()->id,
-                            'dosage' => '1 ເມັດ',
-                            'frequency' => 'ວັນລະ 1 ເທື່ອ',
-                            'duration' => '1 ເດືອນ',
-                            'total_quantity' => 30,
-                            'administration_route' => 'ກິນ',
-                            'special_instructions' => 'ກິນຕອນເຊົ້າ ກ່ອນອາຫານ',
-                            'warnings' => 'ຫ້າມຢຸດກິນກະທັນຫັນ',
-                            'unit_price' => 1500,
-                            'total_price' => 45000,
-                            'dispensing_status' => 'Prescribed',
-                            'prescribed_by' => $doctors[0]->id,
-                            'created_at' => now()->subMinutes(10),
-                        ],
-                        [
-                            'treatment_id' => $treatment->id,
-                            'medicine_id' => $medicines->where('medicine_name', 'Metformin 500mg')->first()->id,
-                            'dosage' => '1 ເມັດ',
-                            'frequency' => 'ວັນລະ 2 ເທື່ອ',
-                            'duration' => '1 ເດືອນ',
-                            'total_quantity' => 60,
-                            'administration_route' => 'ກິນ',
-                            'special_instructions' => 'ກິນກັບອາຫານ ເຊົ້າ-ແລງ',
-                            'warnings' => 'ຖ້າມີອາການຄື່ນເຫຍື່ອໃຫ້ແຈ້ງແພດ',
-                            'unit_price' => 1000,
-                            'total_price' => 60000,
-                            'dispensing_status' => 'Prescribed',
-                            'prescribed_by' => $doctors[0]->id,
-                            'created_at' => now()->subMinutes(10),
-                        ],
-                    ]);
-                    break;
-            }
+        // ແກ້ໄຂຈາກ get(1) ເປັນ find(1) ຫຼື first()
+        $queue = Queue::first(); // ຫຼື Queue::find(1)
+        
+        if (!$queue) {
+            $this->command->error('❌ ບໍ່ພົບຂໍ້ມູນຄິວ');
+            return;
         }
 
+        $doctors = User::where('role', 'doctor')->get();
+        
+        if ($doctors->isEmpty()) {
+            $this->command->error('❌ ບໍ່ພົບຂໍ້ມູນທ່ານໝໍ');
+            return;
+        }
+
+        // ດຶງຂໍ້ມູນຢາ
+        $medicine1 = Medicine::find(1);
+        $medicine2 = Medicine::find(2); 
+        $medicine3 = Medicine::find(3);
+
+        $medications = [
+            [
+                'queue_id' => $queue->id,
+                'medicine_id' => 1,
+                'qty' => 2,
+                'unit_price' => $medicine1->price,
+                'total_price' => $medicine1->price * 2, // ແກ້ໄຂສູດການຄິດໄລ່
+                'notes' => 'ກິນຫຼັງອາຫານ ເຊົ້າ-ແລງ',
+                'created_by' => $doctors[0]->id,
+            ],
+            [
+                'queue_id' => $queue->id,
+                'medicine_id' => 2,
+                'qty' => 3,
+                'unit_price' => $medicine2->price,
+                'total_price' => $medicine2->price * 3, // ແກ້ໄຂສູດການຄິດໄລ່
+                'notes' => 'ກິນກ່ອນອາຫານ 30 ນາທີ',
+                'created_by' => $doctors->count() > 1 ? $doctors[1]->id : $doctors[0]->id,
+            ],
+            [
+                'queue_id' => $queue->id,
+                'medicine_id' => 3,
+                'qty' => 4,
+                'unit_price' => $medicine3->price,
+                'total_price' => $medicine3->price * 4, // ແກ້ໄຂສູດການຄິດໄລ່
+                'notes' => 'ກິນຕອນນອນ',
+                'created_by' => $doctors[0]->id,
+            ],
+        ];
+
         foreach ($medications as $medicationData) {
-            MedicationInstruction::create($medicationData);
+            Medication::create($medicationData);
         }
 
         $this->command->info("✅ ສ້າງການສັ່ງຢາ: " . count($medications) . " ລາຍການ");
     }
-
-    
 }

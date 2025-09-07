@@ -4,7 +4,7 @@
 namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
-use App\Models\{Treatment, Payment, User};
+use App\Models\{QueueService,Medication, Payment, User};
 
 class PaymentSeeder extends Seeder
 {
@@ -12,42 +12,34 @@ class PaymentSeeder extends Seeder
     {
         $this->command->info('💳 ສ້າງຂໍ້ມູນການຈ່າຍເງິນ...');
 
-        $treatments = Treatment::with(['medicationInstructions'])->get();
         $cashier = User::where('role', 'cashier')->first();
+        //total by queue id = 1
+        $total_queue_service = QueueService::where('queue_id', 1)->sum('service_price');
+        //total medication by queue id = 1
+        $total_medication = Medication::where('queue_id', 1)->sum('total_price');
 
-        $payments = [];
 
-        foreach ($treatments as $treatment) {
-            $queue = $treatment->getQueue();
 
-            // ສ້າງການຈ່າຍເງິນສຳລັບຄິວທີ່ສຳເລັດແລ້ວ
-            if ($queue->queue_status === 'Completed') {
-                $payment = new Payment();
-                $payment->initializeFromTreatment($treatment);
+        $payments = [
+            [
+                'queue_id' => 1,
+                'receipt_number' => fake()->unique()->randomNumber(8),
+                'discount_amount' => 10000,
+                'tax_amount' => 0,
+                'total_queue_services'=>$total_queue_service,
+                'total_medication'=>$total_medication,
+                'total_amount' => $total_queue_service + $total_medication,
+                'payment_method' => 'Cash',
+                'payment_status' => 'Paid',
+                'paid_amount' => $total_queue_service + $total_medication + 30000,
+                'change_amount' =>30000,
+                'cashier_id' => $cashier->id,
+                'paid_at' => date('Y-m-d H:i:s'),
+                'notes'=>fake()->paragraph(),
+            ]
+        ];
 
-                // ກໍລະນີຄິວທີ 1 - ຈ່າຍເງິນສົດ
-                if ($queue->id === 1) {
-                    $payment->payment_method = 'Cash';
-                    $payment->paid_amount = 130000; // ຈ່າຍເກີນ
-                    $payment->payment_status = 'Paid';
-                    $payment->cashier_id = $cashier->id;
-                    $payment->paid_at = now()->subMinutes(30);
-                    $payment->calculateAmounts();
-                    $payment->notes = 'ຈ່າຍເງິນສົດ';
-                }
 
-                $payments[] = $payment->toArray();
-            }
-
-            // ສ້າງການຈ່າຍເງິນລໍຖ້າສຳລັບຄິວອື່ນ
-            elseif (in_array($queue->queue_status, ['Results_Ready', 'Ready_For_Payment'])) {
-                $payment = new Payment();
-                $payment->initializeFromTreatment($treatment);
-                $payment->payment_status = 'Pending';
-
-                $payments[] = $payment->toArray();
-            }
-        }
 
         foreach ($payments as $paymentData) {
             // ລຶບ fields ທີ່ບໍ່ຈຳເປັນ

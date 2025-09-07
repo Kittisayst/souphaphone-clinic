@@ -25,7 +25,6 @@ class DatabaseSeeder extends Seeder
             PatientSeeder::class,        // 5. ຄົນໄຂ້
             QueueSeeder::class,          // 6. ຄິວ + Vital Signs
             QueueServiceSeeder::class,   // 7. ບໍລິການໃນຄິວ
-            TreatmentSeeder::class,      // 8. ການປິ່ນປົວ
             MedicationSeeder::class,     // 9. ການສັ່ງຢາ
             PaymentSeeder::class,        // 10. ການຈ່າຍເງິນ
         ]);

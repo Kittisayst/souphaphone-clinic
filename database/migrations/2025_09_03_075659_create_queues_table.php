@@ -22,11 +22,6 @@ return new class extends Migration {
                         ->comment('ເລກລໍຖ້າປັດຈຸບັນ (0=ສຳເລັດແລ້ວ)');
                   $table->date('queue_date')
                         ->comment('ວັນທີ່ມາກວດ');
-
-                  // ອາການເບື້ອງຕົ້ນ
-                  $table->text('initial_complaint')->nullable()
-                        ->comment('ອາການເບື້ອງຕົ້ນທີ່ແຈ້ງມາ');
-
                   // ສະຖານະຄິວ (ໃໝ່)
                   $table->enum('queue_status', [
                         'Registered',           // 1. ລົງທະບຽນແລ້ວ
@@ -38,26 +33,6 @@ return new class extends Migration {
                         'Completed',            // 6. ສຳເລັດ
                         'Cancelled'             // ຍົກເລີກ
                   ])->default('Registered')->comment('ສະຖານະຄິວ');
-
-                  // ຂໍ້ມູນການມອບໝາຍ
-                  $table->unsignedBigInteger('doctor_id')->nullable()
-                        ->comment('ທ່ານໝໍທີ່ຮັບຄິວນີ້');
-                  $table->unsignedBigInteger('assigned_room_id')->nullable()
-                        ->comment('ຫ້ອງທີ່ຖືກມອບໝາຍໃຫ້ຄິວນີ້');
-
-                  // Timestamps ສຳຄັນ
-                  $table->timestamp('room_assigned_at')->nullable()
-                        ->comment('ເວລາທີ່ມອບໝາຍຫ້ອງ');
-                  $table->timestamp('doctor_start_at')->nullable()
-                        ->comment('ເວລາທີ່ທ່ານໝໍເລີ່ມກວດ');
-                  $table->timestamp('tests_completed_at')->nullable()
-                        ->comment('ເວລາທີ່ກວດທັງໝົດສຳເລັດ');
-                  $table->timestamp('payment_completed_at')->nullable()
-                        ->comment('ເວລາທີ່ຈ່າຍເງິນສຳເລັດ');
-
-                  // ຄວາມສຳຄັນ
-                  $table->enum('priority_level', ['Normal', 'Urgent', 'Emergency'])
-                        ->default('Normal')->comment('ລະດັບຄວາມສຳຄັນ');
 
                   // ຜູ້ອັບເດດ
                   $table->unsignedBigInteger('created_by')
@@ -72,13 +47,9 @@ return new class extends Migration {
                   $table->unique(['queue_date', 'queue_number']);
                   $table->index(['queue_date', 'queue_status']);
                   $table->index('waiting_number');
-                  $table->index('priority_level');
-                  $table->index(['doctor_id', 'queue_status']);
 
                   // Foreign Keys
                   $table->foreign('patient_id')->references('id')->on('patients');
-                  $table->foreign('doctor_id')->references('id')->on('users');
-                  $table->foreign('assigned_room_id')->references('id')->on('rooms');
                   $table->foreign('created_by')->references('id')->on('users');
                   $table->foreign('updated_by')->references('id')->on('users');
             });

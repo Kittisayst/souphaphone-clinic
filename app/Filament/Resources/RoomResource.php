@@ -22,15 +22,6 @@ class RoomResource extends Resource
     protected static ?string $modelLabel = 'ຫ້ອງກວດ';
     protected static ?int $navigationSort = 3;
 
-    // 'room_code',
-    //     'room_name',
-    //     'room_type',
-    //     'capacity',
-    //     'equipment_list',
-    //     'is_available',
-    //     'current_user_id',
-    //     'notes'
-
     public static function form(Form $form): Form
     {
         return $form

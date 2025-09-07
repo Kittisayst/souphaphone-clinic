@@ -13,22 +13,22 @@ return new class extends Migration {
             Schema::create('payments', function (Blueprint $table) {
                   $table->id()->comment('ລະຫັດການຈ່າຍເງິນ (Primary Key)');
 
-                  $table->unsignedBigInteger('treatment_id')
-                        ->comment('ລະຫັດການປິ່ນປົວ (Foreign Key)');
+                  $table->unsignedBigInteger('queue_id')
+                        ->comment('ລະຫັດຄິວ (Foreign Key)');
 
-                  // ລາຍການທີ່ຈ່າຍເງິນ
-                  $table->json('payment_items')
-                        ->comment('ລາຍການທີ່ຈ່າຍເງິນ (JSON)');
-
+                  $table->string('receipt_number', 20)->unique()
+                        ->comment('ເລກທີ່ໃບເກັບເງິນ');
                   // ຈຳນວນເງິນ
-                  $table->decimal('subtotal_amount', 10, 2)
-                        ->comment('ກອນໂທນລວມ');
                   $table->decimal('discount_amount', 10, 2)->default(0)
                         ->comment('ຈຳນວນສ່ວນຫຼຸດ');
                   $table->decimal('tax_amount', 10, 2)->default(0)
                         ->comment('ຈຳນວນພາສີ');
+                  $table->decimal('total_queue_services', 10, 2)
+                        ->comment('ລາຄາບໍລິການທັງໝົດ');
+                  $table->decimal('total_medication', 10, 2)
+                        ->comment('ລາຄາຢາທັງໝົດ');
                   $table->decimal('total_amount', 10, 2)
-                        ->comment('ກອນໂທນລວມສຸດທ້າຍ');
+                        ->comment('ລາຄາລວມສຸດທ້າຍ');
 
                   // ການຈ່າຍເງິນ
                   $table->enum('payment_method', [
@@ -38,11 +38,6 @@ return new class extends Migration {
                         'Insurance'  // ປະກັນໄພ
                   ])->comment('ວິທີການຈ່າຍເງິນ');
 
-                  $table->decimal('paid_amount', 10, 2)
-                        ->comment('ກອນໂທນທີ່ຈ່າຍ');
-                  $table->decimal('change_amount', 10, 2)->default(0)
-                        ->comment('ເງິນທອນ');
-
                   // ສະຖານະການຈ່າຍເງິນ
                   $table->enum('payment_status', [
                         'Pending',   // ລໍຖ້າ
@@ -51,6 +46,11 @@ return new class extends Migration {
                         'Cancelled'  // ຍົກເລີກ
                   ])->default('Pending')->comment('ສະຖານະການຈ່າຍເງິນ');
 
+                  $table->decimal('paid_amount', 10, 2)
+                        ->comment('ກອນໂທນທີ່ຈ່າຍ');
+                  $table->decimal('change_amount', 10, 2)->default(0)
+                        ->comment('ເງິນທອນ');
+
                   // ຜູ້ດຳເນີນການ
                   $table->unsignedBigInteger('cashier_id')
                         ->comment('ພະນັກງານເກັບເງິນ');
@@ -58,8 +58,6 @@ return new class extends Migration {
                         ->comment('ເວລາຈ່າຍເງິນ');
 
                   // ໃບເກັບເງິນ
-                  $table->string('receipt_number', 20)->unique()
-                        ->comment('ເລກທີ່ໃບເກັບເງິນ');
                   $table->text('notes')->nullable()
                         ->comment('ໝາຍເຫດການຈ່າຍເງິນ');
 
@@ -67,13 +65,13 @@ return new class extends Migration {
                   $table->softDeletes();
 
                   // Indexes
-                  $table->index('treatment_id');
+                  $table->index('queue_id');
                   $table->index(['cashier_id', 'paid_at']);
                   $table->index('payment_method');
                   $table->index('payment_status');
 
                   // Foreign Keys
-                  $table->foreign('treatment_id')->references('id')->on('treatments');
+                  $table->foreign('queue_id')->references('id')->on('queues')->onDelete('cascade');
                   $table->foreign('cashier_id')->references('id')->on('users');
             });
       }

@@ -40,7 +40,7 @@ return new class extends Migration {
                         ->comment('ຫົວໜ່ວຍ (mg, ml, tablet)');
 
                   // ລາຄາ
-                  $table->decimal('unit_price', 10, 2)->default(0)
+                  $table->decimal('price', 10, 2)->default(0)
                         ->comment('ລາຄາຕໍ່ຫົວໜ່ວຍ');
                   $table->decimal('wholesale_price', 10, 2)->default(0)
                         ->comment('ລາຄາຊື້ເຂົ້າ');
@@ -50,8 +50,6 @@ return new class extends Migration {
                         ->comment('ສາງປັດຈຸບັນ');
                   $table->integer('minimum_stock')->default(0)
                         ->comment('ສາງຕ່ຳສຸດ');
-                  $table->integer('maximum_stock')->default(0)
-                        ->comment('ສາງສູງສຸດ');
 
                   // ວັນໝົດອາຍຸ
                   $table->date('expiry_date')->nullable()
@@ -73,9 +71,6 @@ return new class extends Migration {
                   $table->string('supplier', 200)->nullable()
                         ->comment('ຜູ້ສະໜອງ');
 
-                  // ສະຖານະ
-                  $table->boolean('requires_prescription')->default(false)
-                        ->comment('ຕ້ອງການໃບສັ່ງຢາບໍ່');
                   $table->boolean('is_active')->default(true)
                         ->comment('ສະຖານະການໃຊ້ງານ');
 

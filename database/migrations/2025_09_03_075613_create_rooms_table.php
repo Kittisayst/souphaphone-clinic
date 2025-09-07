@@ -37,18 +37,9 @@ return new class extends Migration {
                         'Maintenance'    // ບຳລຸງຮັກສາ
                   ])->default('Available')->comment('ສະຖານະຫ້ອງ');
 
-                  $table->integer('capacity')->default(1)
-                        ->comment('ຄວາມຈຸຄົນໃນຫ້ອງ');
-                  $table->text('equipment_list')->nullable()
-                        ->comment('ລາຍການອຸປະກອນໃນຫ້ອງ');
+                  //is_available
                   $table->boolean('is_available')->default(true)
-                        ->comment('ສະຖານະວ່າງ: true=ວ່າງ, false=ບໍ່ວ່າງ');
-                  $table->unsignedBigInteger('current_user_id')->nullable()
-                        ->comment('ຜູ້ໃຊ້ຫ້ອງໃນປັດຈຸບັນ');
-                  $table->text('notes')->nullable()
-                        ->comment('ໝາຍເຫດເພີ່ມເຕີມ');
-                  $table->integer('version')->default(1)
-                        ->comment('ເລກເວີເຊັນສຳລັບ optimistic locking');
+                        ->comment('ສະຖານະພ້ອມໃຊ້ງານ');
 
                   $table->timestamps();
                   $table->softDeletes();
@@ -56,10 +47,7 @@ return new class extends Migration {
                   // Indexes
                   $table->index('room_code');
                   $table->index(['room_type', 'room_status']);
-                  $table->index('is_available');
 
-                  // Foreign Keys  
-                  $table->foreign('current_user_id')->references('id')->on('users');
             });
       }
 

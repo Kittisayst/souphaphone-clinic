@@ -23,35 +23,30 @@ return new class extends Migration {
                         ->comment('ນ້ຳໜັກ (kg - ເຊັ່ນ 65.50)');
                   $table->decimal('height', 5, 2)->nullable()
                         ->comment('ຄວາມສູງ (cm - ເຊັ່ນ 170.00)');
-                  $table->integer('blood_pressure_sys')->nullable()
-                        ->comment('ຄວາມດັນເລືອດຕົວເທິງ/Systolic (mmHg)');
-                  $table->integer('blood_pressure_dia')->nullable()
-                        ->comment('ຄວາມດັນເລືອດຕົວລຸ່ມ/Diastolic (mmHg)');
-                  $table->integer('heart_rate')->nullable()
-                        ->comment('ການເຕັ້ນຂອງຫົວໃຈ (ຄັ້ງ/ນາທີ)');
-                  $table->integer('respiratory_rate')->nullable()
-                        ->comment('ອັດຕາການຫາຍໃຈ (ຄັ້ງ/ນາທີ)');
-                  $table->decimal('oxygen_saturation', 5, 2)->nullable()
-                        ->comment('ລະດັບອົກຊີເຈນໃນເລືອດ (%)');
-
-                  // ຜູ້ບັນທຶກ
-                  $table->unsignedBigInteger('recorded_by')
-                        ->comment('ຜູ້ບັນທຶກ (ພະຍາບານ ຫຼື ແອັດມິນ)');
+                  $table->string('blood_pressure', 10)
+                        ->nullable()
+                        ->comment('ຄວາມດັນເລືອດ');
+                  $table->integer('heart_rate')->nullable();
 
                   // ໝາຍເຫດ
                   $table->text('notes')->nullable()
                         ->comment('ໝາຍເຫດເພີ່ມເຕີມຈາກການກວດ');
+
+                  // ຜູ້ບັນທຶກ
+                  $table->unsignedBigInteger('created_by')
+                        ->comment('ຜູ້ບັນທຶກ (ພະຍາບານ ຫຼື ແອັດມິນ)');
+
 
                   $table->timestamps();
                   $table->softDeletes();
 
                   // Indexes
                   $table->unique('queue_id')->comment('1 ຄິວມີ 1 ການກວດເບື້ອງຕົ້ນເທົ່ານັ້ນ');
-                  $table->index('recorded_by');
+                  $table->index('created_by');
 
                   // Foreign Keys
                   $table->foreign('queue_id')->references('id')->on('queues')->onDelete('cascade');
-                  $table->foreign('recorded_by')->references('id')->on('users');
+                  $table->foreign('created_by')->references('id')->on('users');
             });
       }
 
